@@ -1,0 +1,53 @@
+2026-02-25 17:52:43,830 WARNING POST /api/benchmarks/run endpoint_id=1 suite_id=1 model_id=gemma-3-12b-it-uncensored
+2026-02-25 17:52:43,838 WARNING Created run 19, returning to frontend
+2026-02-25 17:52:43,851 WARNING GET /api/benchmarks/stream/19 — SSE endpoint hit
+2026-02-25 17:52:43,851 WARNING Endpoint: LM Studio (http://169.254.83.107:1234/v1)
+2026-02-25 17:52:43,851 WARNING Loaded 10 test cases for suite 1
+2026-02-25 17:52:43,981 WARNING OpenAI client created for http://169.254.83.107:1234/v1, model=gemma-3-12b-it-uncensored
+2026-02-25 17:52:43,985 WARNING SSE generator started for run 19
+2026-02-25 17:52:43,986 WARNING DB write connection opened (C:\Projects\LiteBench\backend\litebench.db)
+2026-02-25 17:52:43,986 WARNING Starting run_benchmark_stream for model=gemma-3-12b-it-uncensored, 10 tests
+2026-02-25 17:52:43,986 WARNING Event: started
+2026-02-25 17:52:43,986 WARNING Event: test_start — test: LRU Cache implementation
+2026-02-25 17:52:43,986 WARNING Calling model gemma-3-12b-it-uncensored (max_tokens=600, base_url=http://169.254.83.107:1234/v1/)
+2026-02-25 17:52:46,941 WARNING Model responded in 3.0s, tokens=233
+2026-02-25 17:52:46,941 WARNING Event: test_done — test: LRU Cache implementation
+2026-02-25 17:52:46,948 WARNING Event: test_start — test: Merge K sorted lists
+2026-02-25 17:52:46,948 WARNING Calling model gemma-3-12b-it-uncensored (max_tokens=500, base_url=http://169.254.83.107:1234/v1/)
+2026-02-25 17:52:50,019 WARNING Model responded in 3.1s, tokens=253
+2026-02-25 17:52:50,019 WARNING Event: test_done — test: Merge K sorted lists
+2026-02-25 17:52:50,028 WARNING Event: test_start — test: Spot the off-by-one + mutation bug
+2026-02-25 17:52:50,028 WARNING Calling model gemma-3-12b-it-uncensored (max_tokens=800, base_url=http://169.254.83.107:1234/v1/)
+2026-02-25 17:52:57,816 WARNING Model responded in 7.8s, tokens=633
+2026-02-25 17:52:57,816 WARNING Event: test_done — test: Spot the off-by-one + mutation bug
+2026-02-25 17:52:57,826 WARNING Event: test_start — test: Clean up callback hell
+2026-02-25 17:52:57,826 WARNING Calling model gemma-3-12b-it-uncensored (max_tokens=600, base_url=http://169.254.83.107:1234/v1/)
+2026-02-25 17:53:02,037 WARNING Model responded in 4.2s, tokens=339
+2026-02-25 17:53:02,037 WARNING Event: test_done — test: Clean up callback hell
+2026-02-25 17:53:02,047 WARNING Event: test_start — test: Algorithm complexity analysis
+2026-02-25 17:53:02,048 WARNING Calling model gemma-3-12b-it-uncensored (max_tokens=500, base_url=http://169.254.83.107:1234/v1/)
+2026-02-25 17:53:08,327 WARNING Model responded in 6.3s, tokens=500
+2026-02-25 17:53:08,327 WARNING Event: test_done — test: Algorithm complexity analysis
+2026-02-25 17:53:08,335 WARNING Event: test_start — test: JSON structured output
+2026-02-25 17:53:08,335 WARNING Calling model gemma-3-12b-it-uncensored (max_tokens=400, base_url=http://169.254.83.107:1234/v1/)
+2026-02-25 17:53:10,134 WARNING Model responded in 1.8s, tokens=140
+2026-02-25 17:53:10,134 WARNING Event: test_done — test: JSON structured output
+2026-02-25 17:53:10,143 WARNING Event: test_start — test: Word count constraint
+2026-02-25 17:53:10,143 WARNING Calling model gemma-3-12b-it-uncensored (max_tokens=300, base_url=http://169.254.83.107:1234/v1/)
+2026-02-25 17:53:10,687 WARNING Model responded in 0.5s, tokens=40
+2026-02-25 17:53:10,688 WARNING Event: test_done — test: Word count constraint
+2026-02-25 17:53:10,694 WARNING Event: test_start — test: Explain complex regex
+2026-02-25 17:53:10,695 WARNING Calling model gemma-3-12b-it-uncensored (max_tokens=600, base_url=http://169.254.83.107:1234/v1/)
+2026-02-25 17:53:18,235 WARNING Model responded in 7.5s, tokens=600
+2026-02-25 17:53:18,235 WARNING Event: test_done — test: Explain complex regex
+2026-02-25 17:53:18,242 WARNING Event: test_start — test: SQL query from requirements
+2026-02-25 17:53:18,242 WARNING Calling model gemma-3-12b-it-uncensored (max_tokens=800, base_url=http://169.254.83.107:1234/v1/)
+2026-02-25 17:53:19,986 WARNING Model responded in 1.7s, tokens=138
+2026-02-25 17:53:19,986 WARNING Event: test_done — test: SQL query from requirements
+2026-02-25 17:53:19,997 WARNING Event: test_start — test: System design micro-challenge
+2026-02-25 17:53:19,997 WARNING Calling model gemma-3-12b-it-uncensored (max_tokens=1200, base_url=http://169.254.83.107:1234/v1/)
+2026-02-25 17:53:28,743 WARNING Model responded in 8.7s, tokens=706
+2026-02-25 17:53:28,743 WARNING Event: test_done — test: System design micro-challenge
+2026-02-25 17:53:28,751 WARNING Event: summary
+2026-02-25 17:53:28,757 WARNING Event: done
+2026-02-25 17:53:28,758 WARNING SSE stream ended for run 19
