@@ -4,7 +4,7 @@ from engine.thinking import strip_thinking
 
 
 def score_response(test: dict, response: str) -> dict:
-    """Score a response based on keyword presence/absence. Strips thinking for fair eval."""
+    """Score a response based on keyword presence/absence, regex patterns, and length. Strips thinking for fair eval."""
     cleaned, thinking = strip_thinking(response)
     had_thinking = len(thinking) > 50
 
@@ -26,10 +26,29 @@ def score_response(test: dict, response: str) -> dict:
         if anti.lower() in eval_lower:
             violations.append(anti)
 
-    # Base score
+    # Base keyword score
     keyword_total = len(test.get("eval_keywords", []))
     keyword_score = len(hits) / keyword_total if keyword_total > 0 else 1.0
     anti_penalty = len(violations) * 0.2
+
+    # Regex pattern matching
+    regex_patterns = test.get("eval_regex", [])
+    regex_score = 0.0
+    regex_hits = 0
+    if regex_patterns:
+        for pattern in regex_patterns:
+            try:
+                if re.search(pattern, eval_text, re.DOTALL):
+                    regex_hits += 1
+            except re.error:
+                pass  # Skip invalid patterns
+        regex_score = regex_hits / len(regex_patterns) if regex_patterns else 0.0
+
+    # Combine keyword + regex into base score
+    if regex_patterns:
+        base_score = (keyword_score + regex_score) / 2
+    else:
+        base_score = keyword_score
 
     # Bonus: valid JSON check
     json_bonus = 0
@@ -59,7 +78,13 @@ def score_response(test: dict, response: str) -> dict:
     if not cleaned and had_thinking:
         truncation_penalty = 0.5
 
-    final_score = min(1.0, max(0, keyword_score - anti_penalty + json_bonus + sentence_bonus - truncation_penalty))
+    # Min length penalty — penalize terse answers on tests requiring detail
+    length_penalty = 0
+    eval_min_length = test.get("eval_min_length")
+    if eval_min_length and len(eval_text) < eval_min_length:
+        length_penalty = 0.3
+
+    final_score = min(1.0, max(0, base_score - anti_penalty + json_bonus + sentence_bonus - truncation_penalty - length_penalty))
 
     return {
         "keyword_score": round(keyword_score, 2),

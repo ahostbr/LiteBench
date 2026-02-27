@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 import aiosqlite
 from db import get_db
 from models import TestSuiteCreate, TestSuiteOut, TestCaseCreate, TestCaseUpdate, TestCaseOut
+from routers.suite_data import STANDARD_TESTS, STRESS_TESTS, SPEED_TESTS
 
 router = APIRouter(prefix="/api/suites", tags=["tests"])
 
@@ -33,7 +34,7 @@ DEFAULT_TESTS = [
         ),
         "eval_keywords": ["heapq", "def merge_k_sorted", "-> list"],
         "eval_anti": [],
-        "max_tokens": 500,
+        "max_tokens": 800,
     },
     {
         "test_id": "bugfind-1",
@@ -127,7 +128,7 @@ DEFAULT_TESTS = [
         ),
         "eval_keywords": ["O(n)", "Fibonacci", "linear", "space"],
         "eval_anti": [],
-        "max_tokens": 500,
+        "max_tokens": 1000,
     },
     {
         "test_id": "instruct-1",
@@ -143,7 +144,7 @@ DEFAULT_TESTS = [
         "eval_keywords": ["Singleton", "Observer", "Factory", "creational", "behavioral", "patterns"],
         "eval_anti": ["Here is", "Sure"],
         "eval_json": True,
-        "max_tokens": 400,
+        "max_tokens": 600,
     },
     {
         "test_id": "instruct-2",
@@ -159,7 +160,7 @@ DEFAULT_TESTS = [
         "eval_keywords": [],
         "eval_anti": ["basically"],
         "eval_sentence_count": 3,
-        "max_tokens": 300,
+        "max_tokens": 400,
     },
     {
         "test_id": "understand-1",
@@ -228,6 +229,8 @@ def _row_to_case(row: aiosqlite.Row) -> dict:
         "eval_anti": json.loads(row["eval_anti"]),
         "eval_json": bool(row["eval_json"]),
         "eval_sentence_count": row["eval_sentence_count"],
+        "eval_regex": json.loads(row["eval_regex"]) if row["eval_regex"] else [],
+        "eval_min_length": row["eval_min_length"],
         "max_tokens": row["max_tokens"],
         "sort_order": row["sort_order"],
     }
@@ -284,13 +287,16 @@ async def create_case(suite_id: int, body: TestCaseCreate, db: aiosqlite.Connect
         raise HTTPException(404, "Suite not found")
     cursor = await db.execute(
         """INSERT INTO test_cases (suite_id, test_id, category, name, system_prompt, user_prompt,
-           eval_keywords, eval_anti, eval_json, eval_sentence_count, max_tokens, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           eval_keywords, eval_anti, eval_json, eval_sentence_count, eval_regex, eval_min_length,
+           max_tokens, sort_order)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             suite_id, body.test_id, body.category, body.name,
             body.system_prompt, body.user_prompt,
             json.dumps(body.eval_keywords), json.dumps(body.eval_anti),
-            int(body.eval_json), body.eval_sentence_count, body.max_tokens, body.sort_order,
+            int(body.eval_json), body.eval_sentence_count,
+            json.dumps(body.eval_regex), body.eval_min_length,
+            body.max_tokens, body.sort_order,
         ),
     )
     await db.commit()
@@ -313,6 +319,8 @@ async def update_case(suite_id: int, case_id: int, body: TestCaseUpdate, db: aio
         updates["eval_anti"] = json.dumps(updates["eval_anti"])
     if "eval_json" in updates:
         updates["eval_json"] = int(updates["eval_json"])
+    if "eval_regex" in updates:
+        updates["eval_regex"] = json.dumps(updates["eval_regex"])
     if updates:
         set_clause = ", ".join(f"{k} = ?" for k in updates)
         await db.execute(f"UPDATE test_cases SET {set_clause} WHERE id = ?", (*updates.values(), case_id))
@@ -349,16 +357,80 @@ async def seed_defaults(db: aiosqlite.Connection = Depends(get_db)):
     for i, test in enumerate(DEFAULT_TESTS):
         await db.execute(
             """INSERT INTO test_cases (suite_id, test_id, category, name, system_prompt, user_prompt,
-               eval_keywords, eval_anti, eval_json, eval_sentence_count, max_tokens, sort_order)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               eval_keywords, eval_anti, eval_json, eval_sentence_count, eval_regex, eval_min_length,
+               max_tokens, sort_order)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 suite_id, test["test_id"], test["category"], test["name"],
                 test["system_prompt"], test["user_prompt"],
                 json.dumps(test.get("eval_keywords", [])), json.dumps(test.get("eval_anti", [])),
                 int(test.get("eval_json", False)), test.get("eval_sentence_count"),
+                json.dumps(test.get("eval_regex", [])), test.get("eval_min_length"),
                 test["max_tokens"], i,
             ),
         )
 
     await db.commit()
     return {"message": f"Seeded {len(DEFAULT_TESTS)} default tests", "suite_id": suite_id}
+
+
+async def _seed_suite(db: aiosqlite.Connection, name: str, description: str, tests: list[dict]) -> dict:
+    """Helper to seed a named suite. Skips if a suite with that exact name already exists."""
+    existing = await (await db.execute("SELECT id FROM test_suites WHERE name = ?", (name,))).fetchone()
+    if existing:
+        return {"message": f"Suite '{name}' already exists", "suite_id": existing["id"]}
+
+    cursor = await db.execute(
+        "INSERT INTO test_suites (name, description) VALUES (?, ?)",
+        (name, description),
+    )
+    suite_id = cursor.lastrowid
+
+    for i, test in enumerate(tests):
+        await db.execute(
+            """INSERT INTO test_cases (suite_id, test_id, category, name, system_prompt, user_prompt,
+               eval_keywords, eval_anti, eval_json, eval_sentence_count, eval_regex, eval_min_length,
+               max_tokens, sort_order)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                suite_id, test["test_id"], test["category"], test["name"],
+                test["system_prompt"], test["user_prompt"],
+                json.dumps(test.get("eval_keywords", [])), json.dumps(test.get("eval_anti", [])),
+                int(test.get("eval_json", False)), test.get("eval_sentence_count"),
+                json.dumps(test.get("eval_regex", [])), test.get("eval_min_length"),
+                test["max_tokens"], i,
+            ),
+        )
+
+    await db.commit()
+    return {"message": f"Seeded {len(tests)} tests in '{name}'", "suite_id": suite_id}
+
+
+@router.post("/seed-standard", status_code=201)
+async def seed_standard(db: aiosqlite.Connection = Depends(get_db)):
+    return await _seed_suite(
+        db,
+        "Standard Suite",
+        "25 comprehensive tests across 8 categories: code gen, multi-language, architecture, security, reasoning, code review, instruction following",
+        STANDARD_TESTS,
+    )
+
+
+@router.post("/seed-stress", status_code=201)
+async def seed_stress(db: aiosqlite.Connection = Depends(get_db)):
+    return await _seed_suite(
+        db,
+        "Stress Suite",
+        "15 maximum-difficulty tests: long-form output, multi-step problems, 2000-4000 token budgets",
+        STRESS_TESTS,
+    )
+
+
+@router.post("/seed-speed", status_code=201)
+async def seed_speed(db: aiosqlite.Connection = Depends(get_db)):
+    return await _seed_suite(
+        db,
+        "Speed Suite",
+        "10 fast focused tasks optimized for throughput measurement, 150-300 token budgets",
+        SPEED_TESTS,
+    )

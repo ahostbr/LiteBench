@@ -49,6 +49,8 @@ class TestCaseCreate(BaseModel):
     eval_anti: list[str] = []
     eval_json: bool = False
     eval_sentence_count: Optional[int] = None
+    eval_regex: list[str] = []
+    eval_min_length: Optional[int] = None
     max_tokens: int = 600
     sort_order: int = 0
 
@@ -62,6 +64,8 @@ class TestCaseUpdate(BaseModel):
     eval_anti: Optional[list[str]] = None
     eval_json: Optional[bool] = None
     eval_sentence_count: Optional[int] = None
+    eval_regex: Optional[list[str]] = None
+    eval_min_length: Optional[int] = None
     max_tokens: Optional[int] = None
     sort_order: Optional[int] = None
 
@@ -77,6 +81,8 @@ class TestCaseOut(BaseModel):
     eval_anti: list[str]
     eval_json: bool
     eval_sentence_count: Optional[int]
+    eval_regex: list[str] = []
+    eval_min_length: Optional[int] = None
     max_tokens: int
     sort_order: int
 

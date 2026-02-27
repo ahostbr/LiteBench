@@ -19,6 +19,28 @@ async def lifespan(app: FastAPI):
             "UPDATE benchmark_runs SET status = 'failed', completed_at = ? WHERE status = 'running'",
             (now,),
         )
+        # Migrate: add eval_regex and eval_min_length columns if missing
+        try:
+            await db.execute("SELECT eval_regex FROM test_cases LIMIT 1")
+        except Exception:
+            await db.execute("ALTER TABLE test_cases ADD COLUMN eval_regex TEXT NOT NULL DEFAULT '[]'")
+        try:
+            await db.execute("SELECT eval_min_length FROM test_cases LIMIT 1")
+        except Exception:
+            await db.execute("ALTER TABLE test_cases ADD COLUMN eval_min_length INTEGER")
+
+        # Bump max_tokens for tight default test cases
+        token_bumps = {
+            "codegen-2": 800,
+            "reason-1": 1000,
+            "instruct-1": 600,
+            "instruct-2": 400,
+        }
+        for test_id, new_max in token_bumps.items():
+            await db.execute(
+                "UPDATE test_cases SET max_tokens = ? WHERE test_id = ? AND max_tokens < ?",
+                (new_max, test_id, new_max),
+            )
         await db.commit()
     yield
 
