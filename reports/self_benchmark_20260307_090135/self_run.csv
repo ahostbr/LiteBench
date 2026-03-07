@@ -1,0 +1,11 @@
+test_id,category,name,final_score,keyword_score,tokens_per_sec,elapsed_s,had_thinking,finish_reason
+codegen-1,Code Generation,LRU Cache implementation,1.0,1.0,92.0,4.65,False,stop
+codegen-2,Code Generation,Merge K sorted lists,1.0,1.0,98.0,1.45,False,stop
+bugfind-1,Bug Finding,Spot the off-by-one + mutation bug,1.0,1.0,90.0,2.21,False,stop
+refactor-1,Refactoring,Clean up callback hell,1.0,1.0,87.0,2.77,False,stop
+reason-1,Reasoning,Algorithm complexity analysis,1.0,1.0,96.0,1.47,False,stop
+instruct-1,Instruction Following,JSON structured output,1.0,1.0,110.0,1.05,False,stop
+instruct-2,Instruction Following,Word count constraint,1.0,1.0,115.0,0.54,False,stop
+understand-1,Code Understanding,Explain complex regex,1.0,1.0,95.0,1.85,False,stop
+reason-2,Reasoning,SQL query from requirements,1.0,1.0,89.0,2.88,False,stop
+creative-1,Creative Problem Solving,System design micro-challenge,1.0,1.0,82.0,6.01,False,stop

@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 import aiosqlite
 from db import get_db
 from models import TestSuiteCreate, TestSuiteOut, TestCaseCreate, TestCaseUpdate, TestCaseOut
-from routers.suite_data import STANDARD_TESTS, STRESS_TESTS, SPEED_TESTS
+from routers.suite_data import STANDARD_TESTS, STRESS_TESTS, SPEED_TESTS, JUDGMENT_TESTS
 
 router = APIRouter(prefix="/api/suites", tags=["tests"])
 
@@ -433,4 +433,14 @@ async def seed_speed(db: aiosqlite.Connection = Depends(get_db)):
         "Speed Suite",
         "10 fast focused tasks optimized for throughput measurement, 150-300 token budgets",
         SPEED_TESTS,
+    )
+
+
+@router.post("/seed-judgment", status_code=201)
+async def seed_judgment(db: aiosqlite.Connection = Depends(get_db)):
+    return await _seed_suite(
+        db,
+        "Judgment Suite",
+        "12 tests for common sense, data hygiene, RAG refusal, epistemic calibration, and pipeline-vs-understanding judgment",
+        JUDGMENT_TESTS,
     )
