@@ -9,6 +9,7 @@ venv/
 # Node
 node_modules/
 dist/
+out/
 .vite/
 
 # IDE

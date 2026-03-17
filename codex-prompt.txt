@@ -1,0 +1,40 @@
+Convert LiteBench from a browser-based web app (FastAPI backend + React/Vite frontend) into an Electron desktop app using electron-vite, matching the LiteAI Suite patterns. Full port - NO Python sidecar. Port all Python backend logic to TypeScript in the Electron main process.
+
+Steps:
+1) Scaffold electron-vite project structure: src/main/index.ts, src/preload/index.ts, electron.vite.config.ts
+2) Port backend/db.py to src/main/db.ts using better-sqlite3 (same SQLite schema)
+3) Port backend/engine/scorer.py, runner.py, thinking.py to src/main/engine/ as TypeScript
+4) Port backend/routers/ to src/main/ipc/ as IPC handlers using domain:action naming (bench:endpoints:list, bench:suites:list, bench:run:start, etc)
+5) Create src/preload/index.ts exposing window.liteBench API via contextBridge
+6) Move frontend/src/ to src/renderer/, rewire api/client.ts to use IPC instead of fetch, replace useSSE.ts with useIPCStream.ts that listens to IPC events
+7) Keep all React components, Zustand stores, ECharts charts, Tailwind v4 styling intact
+8) Use OpenAI Node.js SDK for LLM calls instead of Python openai
+9) Frameless window with custom titlebar
+10) Use pnpm as package manager
+
+Reference C:/Projects/LiteSnip for electron-vite patterns, C:/Projects/LiteSwap/src/main/python-sidecar.ts for sidecar pattern understanding (but we are NOT using sidecar - full port instead).
+
+The backend Python files are in backend/ for reference.
+The current frontend is in frontend/src/.
+Database is SQLite at backend/litebench.db.
+
+IPC Channel Map:
+- bench:endpoints:list -> Endpoint[]
+- bench:endpoints:create -> Endpoint
+- bench:endpoints:update -> Endpoint
+- bench:endpoints:delete -> void
+- bench:endpoints:models -> ModelInfo[]
+- bench:suites:list -> Suite[]
+- bench:suites:create -> Suite
+- bench:suites:delete -> void
+- bench:suites:seed -> Suite
+- bench:suites:add-case -> TestCase
+- bench:suites:update-case -> TestCase
+- bench:suites:delete-case -> void
+- bench:run:start -> runId (then push events via bench:run:event)
+- bench:run:cancel -> void
+- bench:runs:list -> BenchmarkRun[]
+- bench:runs:get -> BenchmarkRun + results
+- bench:runs:delete -> void
+- bench:runs:compare -> CompareData
+- bench:runs:export -> string (JSON/CSV/MD)
