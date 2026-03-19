@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.3",
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/vite": "^4.1.7",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.15.21",
@@ -63,7 +64,8 @@
       "node_modules/better-sqlite3/**"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "resources/icon.ico"
     },
     "nsis": {
       "oneClick": false,

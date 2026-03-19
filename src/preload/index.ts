@@ -66,6 +66,14 @@ export interface LiteBenchApi {
     close(): void;
     isMaximized(): Promise<boolean>;
     onMaximizeChange(callback: (maximized: boolean) => void): () => void;
+    spanAllMonitors(): void;
+    restoreSpan(): void;
+    isSpanned(): Promise<boolean>;
+    displayCount(): Promise<number>;
+    onSpanChange(callback: (spanned: boolean) => void): () => void;
+    getZoom(): Promise<number>;
+    setZoom(pct: number): Promise<void>;
+    onZoomChange(callback: (pct: number) => void): () => void;
   };
 }
 
@@ -127,6 +135,27 @@ const api: LiteBenchApi = {
       ipcRenderer.on('bench:window:maximize-change', handler);
       return () => {
         ipcRenderer.removeListener('bench:window:maximize-change', handler);
+      };
+    },
+    spanAllMonitors: () => ipcRenderer.send('bench:window:span-all-monitors'),
+    restoreSpan: () => ipcRenderer.send('bench:window:restore-span'),
+    isSpanned: () => ipcRenderer.invoke('bench:window:is-spanned'),
+    displayCount: () => ipcRenderer.invoke('bench:window:display-count'),
+    onSpanChange: (callback) => {
+      const handler = (_event: unknown, spanned: boolean) =>
+        callback(spanned);
+      ipcRenderer.on('bench:window:span-change', handler);
+      return () => {
+        ipcRenderer.removeListener('bench:window:span-change', handler);
+      };
+    },
+    getZoom: () => ipcRenderer.invoke('bench:window:get-zoom'),
+    setZoom: (pct) => ipcRenderer.invoke('bench:window:set-zoom', { zoom: pct }),
+    onZoomChange: (callback) => {
+      const handler = (_event: unknown, pct: number) => callback(pct);
+      ipcRenderer.on('bench:window:zoom-change', handler);
+      return () => {
+        ipcRenderer.removeListener('bench:window:zoom-change', handler);
       };
     },
   },

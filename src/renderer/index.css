@@ -2,6 +2,17 @@
 
 @theme {
   --color-zinc-925: #111113;
+  --color-accent: #3a8ec0;
+  --color-accent-bright: hsl(205, 55%, 60%);
+}
+
+:root {
+  --accent-color: #3a8ec0;
+  --accent-bright: hsl(205, 55%, 60%);
+  --accent-dim: hsl(205, 53%, 49%, 0.5);
+  --accent-h: 205;
+  --accent-s: 53%;
+  --accent-l: 49%;
 }
 
 html,
@@ -27,4 +38,9 @@ body {
 
 .no-drag {
   -webkit-app-region: no-drag;
+}
+
+[data-reduce-motion] * {
+  animation-duration: 0s !important;
+  transition-duration: 0s !important;
 }

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, screen, shell } from 'electron';
 import { electronApp, optimizer } from '@electron-toolkit/utils';
 import { join } from 'path';
 import { closeDatabase, initializeDatabase } from './db';
@@ -11,6 +11,21 @@ import {
 } from './ipc/window-handlers';
 
 let mainWindow: BrowserWindow | null = null;
+let isSpanned = false;
+let preSpanBounds: Electron.Rectangle | null = null;
+
+function getUnionBounds(): Electron.Rectangle {
+  const displays = screen.getAllDisplays();
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const display of displays) {
+    const { x, y, width, height } = display.bounds;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + width);
+    maxY = Math.max(maxY, y + height);
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
 
 function createMainWindow(): BrowserWindow {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -25,6 +40,7 @@ function createMainWindow(): BrowserWindow {
     frame: false,
     backgroundColor: '#09090b',
     autoHideMenuBar: true,
+    icon: join(__dirname, '../../resources/icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -43,6 +59,78 @@ function createMainWindow(): BrowserWindow {
   });
 
   bindWindowStateEvents(mainWindow);
+
+  // Multi-monitor span IPC
+  ipcMain.on('bench:window:span-all-monitors', () => {
+    if (!mainWindow || isSpanned) return;
+    preSpanBounds = mainWindow.getBounds();
+    const union = getUnionBounds();
+    mainWindow.setMinimumSize(1, 1);
+    mainWindow.setBounds(union);
+    isSpanned = true;
+    mainWindow.webContents.send('bench:window:span-change', true);
+  });
+
+  ipcMain.on('bench:window:restore-span', () => {
+    if (!mainWindow || !isSpanned) return;
+    if (preSpanBounds) mainWindow.setBounds(preSpanBounds);
+    mainWindow.setMinimumSize(1080, 720);
+    isSpanned = false;
+    preSpanBounds = null;
+    mainWindow.webContents.send('bench:window:span-change', false);
+  });
+
+  ipcMain.handle('bench:window:is-spanned', () => isSpanned);
+  ipcMain.handle('bench:window:display-count', () => screen.getAllDisplays().length);
+
+  screen.on('display-removed', () => {
+    if (isSpanned && mainWindow) {
+      const primary = screen.getPrimaryDisplay();
+      mainWindow.setBounds(primary.workArea);
+      mainWindow.setMinimumSize(1080, 720);
+      isSpanned = false;
+      preSpanBounds = null;
+      mainWindow.webContents.send('bench:window:span-change', false);
+    }
+  });
+
+  // Zoom controls
+  const DEFAULT_ZOOM = 100;
+
+  function applyZoom(pct: number): void {
+    if (!mainWindow) return;
+    mainWindow.webContents.setZoomFactor(pct / 100);
+  }
+
+  function setAndPersistZoom(pct: number): void {
+    const clamped = Math.max(50, Math.min(200, pct));
+    // Store in localStorage via renderer (no config store in LiteBench main)
+    applyZoom(clamped);
+    mainWindow?.webContents.send('bench:window:zoom-change', clamped);
+  }
+
+  ipcMain.handle('bench:window:get-zoom', () => {
+    return Math.round((mainWindow?.webContents.getZoomFactor() ?? 1) * 100);
+  });
+
+  ipcMain.handle('bench:window:set-zoom', (_event, payload: { zoom: number }) => {
+    setAndPersistZoom(payload.zoom);
+  });
+
+  mainWindow.webContents.on('before-input-event', (_event, input) => {
+    if (!input.control || input.type !== 'keyDown') return;
+    const current = Math.round((mainWindow?.webContents.getZoomFactor() ?? 1) * 100);
+    if (input.key === '=' || input.key === '+') {
+      _event.preventDefault();
+      setAndPersistZoom(current + 5);
+    } else if (input.key === '-') {
+      _event.preventDefault();
+      setAndPersistZoom(current - 5);
+    } else if (input.key === '0') {
+      _event.preventDefault();
+      setAndPersistZoom(100);
+    }
+  });
 
   if (process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);

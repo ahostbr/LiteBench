@@ -1,4 +1,5 @@
-import { LayoutDashboard, Play, History, FlaskConical, Settings, Zap } from 'lucide-react';
+import { LayoutDashboard, Play, History, FlaskConical, Settings } from 'lucide-react';
+import iconSrc from '@/assets/icon.png';
 import { cn } from '@/lib/utils';
 
 export type Page = 'dashboard' | 'runner' | 'results' | 'tests';
@@ -19,7 +20,7 @@ export function Sidebar({ active, onNavigate }: SidebarProps) {
   return (
     <aside className="w-56 shrink-0 border-r border-zinc-800 bg-zinc-950 flex flex-col">
       <div className="flex items-center gap-2.5 px-5 py-4 border-b border-zinc-800">
-        <Zap size={20} className="text-blue-500" />
+        <img src={iconSrc} alt="LiteBench" className="h-5 w-5 rounded" />
         <span className="font-semibold text-sm tracking-tight">LiteBench</span>
       </div>
       <nav className="flex-1 py-3 px-3 space-y-0.5">
@@ -40,7 +41,7 @@ export function Sidebar({ active, onNavigate }: SidebarProps) {
         ))}
       </nav>
       <div className="px-5 py-3 border-t border-zinc-800 text-[11px] text-zinc-600">
-        LLM Benchmark Studio
+        Lite AI Suite
       </div>
     </aside>
   );
