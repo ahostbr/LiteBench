@@ -1,4 +1,21 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import * as fs from 'fs'
+import * as path from 'path'
+
+let themeManifest: Record<string, unknown> | null = null
+try {
+  const manifestPaths = [
+    path.join(process.resourcesPath || '', '..', '..', 'theme-manifest.json'),
+    path.join(process.resourcesPath || '', '..', '..', 'LiteCore', 'resources', 'theme-manifest.json'),
+    path.resolve(__dirname, '..', '..', '..', 'LiteCore', 'resources', 'theme-manifest.json'),
+  ]
+  for (const p of manifestPaths) {
+    if (fs.existsSync(p)) {
+      themeManifest = JSON.parse(fs.readFileSync(p, 'utf-8'))
+      break
+    }
+  }
+} catch {}
 import type {
   ApiMessageResponse,
   BenchmarkRun,
@@ -162,3 +179,6 @@ const api: LiteBenchApi = {
 };
 
 contextBridge.exposeInMainWorld('liteBench', api);
+if (themeManifest) {
+  contextBridge.exposeInMainWorld('__themeManifest', themeManifest)
+}

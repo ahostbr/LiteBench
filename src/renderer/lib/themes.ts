@@ -1,4 +1,6 @@
 
+const _manifest = typeof window !== 'undefined' ? (window as any).__themeManifest : null;
+
 export interface ThemePreset {
   id: string;
   name: string;
@@ -23,7 +25,7 @@ export interface ThemePreset {
   info: string;
 }
 
-export const THEMES: ThemePreset[] = [
+const BUILTIN_THEMES: ThemePreset[] = [
   {
     id: "oscura-midnight",
     name: "Oscura Midnight",
@@ -187,6 +189,8 @@ export const THEMES: ThemePreset[] = [
     info: "#7ca8cf",
   },
 ];
+
+export const THEMES: ThemePreset[] = Array.isArray(_manifest?.themes) && _manifest.themes.length > 0 ? _manifest.themes : BUILTIN_THEMES;
 
 export function getThemeById(id: string): ThemePreset | undefined {
   return THEMES.find((t) => t.id === id);
