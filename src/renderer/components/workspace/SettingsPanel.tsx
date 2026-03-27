@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { cn } from '@/lib/utils';
+import { Check } from 'lucide-react';
 import { useThemeStore } from '@/stores/theme-store';
-import { ACCENT_PRESETS } from '@/lib/accent';
+import { THEMES } from '@/lib/themes';
+import { applyThemeToDOM } from '@/lib/accent';
 
 function normalizeHex(color: string) {
   if (!color) return '';
@@ -9,84 +10,214 @@ function normalizeHex(color: string) {
 }
 
 export function SettingsPanel() {
-  const { accentColor, setAccentColor, reduceMotion, setReduceMotion } = useThemeStore();
+  const {
+    activeTheme,
+    setActiveTheme,
+    accentColor,
+    setAccentColor,
+    particleDensity,
+    setParticleDensity,
+    particleSpeed,
+    setParticleSpeed,
+    particleLifespan,
+    setParticleLifespan,
+    glassBlur,
+    setGlassBlur,
+    reduceMotion,
+    setReduceMotion,
+  } = useThemeStore();
 
   return (
     <div className="flex flex-col gap-6 max-w-2xl">
-      <h3 className="text-lg font-semibold text-zinc-200">Appearance</h3>
+      <div className="flex flex-col gap-6">
+        <h3 className="font-display italic text-xl" style={{ color: 'var(--text-primary, #e8e4dc)' }}>Appearance</h3>
 
-      {/* Accent Color */}
-      <section className="flex flex-col gap-3">
-        <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-medium">
-          Accent Color
-        </span>
-
-        {/* Presets */}
-        <div className="flex flex-wrap gap-2">
-          {Object.entries(ACCENT_PRESETS).map(([name, hex]) => (
-            <button
-              key={name}
-              onClick={() => setAccentColor(hex)}
-              className={cn(
-                'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs transition-all',
-                accentColor === hex
-                  ? 'border-[var(--accent-color)] bg-[var(--accent-color)]/10 text-zinc-200'
-                  : 'border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700',
-              )}
-            >
-              <span
-                className="w-3 h-3 rounded-full shrink-0"
-                style={{ backgroundColor: hex }}
-              />
-              {name}
-            </button>
-          ))}
-        </div>
-
-        {/* Custom picker */}
-        <div className="flex items-center gap-3 rounded-xl border border-zinc-800/50 bg-zinc-900/50 px-3 py-3">
-          <label className="group relative flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-zinc-700/50 bg-zinc-800">
-            <span
-              className="h-7 w-7 rounded-full border border-white/10"
-              style={{ backgroundColor: accentColor }}
-            />
-            <input
-              type="color"
-              value={accentColor}
-              onChange={(e) => setAccentColor(normalizeHex(e.target.value))}
-              className="absolute inset-0 cursor-pointer opacity-0"
-              aria-label="Custom accent color"
-            />
-          </label>
-          <div className="min-w-0 flex-1">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Custom</div>
-            <div className="mt-0.5 text-xs text-zinc-300 font-mono">{normalizeHex(accentColor)}</div>
+        {/* Theme selector */}
+        <section className="flex flex-col gap-2">
+          <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: 'var(--text-muted, #7a756d)' }}>
+            Theme
+          </span>
+          <span className="text-[10px]" style={{ color: 'var(--text-muted, #7a756d)' }}>
+            Choose your preferred color scheme
+          </span>
+          <div className="grid grid-cols-4 gap-2 mt-1">
+            {THEMES.map((theme) => (
+              <button
+                key={theme.id}
+                onClick={() => {
+                  setActiveTheme(theme.id);
+                  setAccentColor(theme.accent);
+                  applyThemeToDOM(theme);
+                }}
+                className="relative flex flex-col items-center gap-2 rounded-lg border p-3 transition-all duration-200"
+                style={{
+                  borderColor: activeTheme === theme.id ? theme.accent : 'var(--color-divider, rgba(255,255,255,0.07))',
+                  backgroundColor: theme.panel,
+                  boxShadow: activeTheme === theme.id ? `0 0 8px ${theme.accent}40` : 'none',
+                }}
+              >
+                {/* Checkmark for selected theme */}
+                {activeTheme === theme.id && (
+                  <div
+                    className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full"
+                    style={{ backgroundColor: theme.accent }}
+                  >
+                    <Check size={10} style={{ color: theme.void }} strokeWidth={3} />
+                  </div>
+                )}
+                {/* Color swatches — 3 vertical bars */}
+                <div className="flex items-end gap-1 h-8">
+                  <div
+                    className="w-2 rounded-sm"
+                    style={{ height: 28, backgroundColor: theme.accent }}
+                  />
+                  <div
+                    className="w-2 rounded-sm"
+                    style={{ height: 20, backgroundColor: theme.bone }}
+                  />
+                  <div
+                    className="w-2 rounded-sm"
+                    style={{ height: 14, backgroundColor: theme.ash }}
+                  />
+                </div>
+                {/* Theme name */}
+                <span
+                  className="text-[10px] font-medium"
+                  style={{ color: theme.bone }}
+                >
+                  {theme.name}
+                </span>
+              </button>
+            ))}
           </div>
+        </section>
+
+        {/* Custom accent color picker */}
+        <section className="flex flex-col gap-2">
+          <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: 'var(--text-muted, #7a756d)' }}>
+            Custom Accent
+          </span>
+          <div className="flex items-center gap-3 mt-2">
+            <label className="group relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-divider/50 bg-shelf">
+              <span
+                className="h-6 w-6 rounded-full border border-white/15"
+                style={{ backgroundColor: accentColor }}
+              />
+              <input
+                type="color"
+                value={accentColor}
+                onChange={(e) => setAccentColor(normalizeHex(e.target.value))}
+                className="absolute inset-0 cursor-pointer opacity-0"
+                aria-label="Custom accent color"
+              />
+            </label>
+            <span className="text-xs" style={{ color: 'var(--text-primary, #e8e4dc)' }}>{normalizeHex(accentColor)}</span>
+          </div>
+        </section>
+
+        {/* Effects */}
+        <div className="border-t border-divider/30 pt-4">
+          <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: 'var(--text-muted, #7a756d)' }}>
+            Effects
+          </span>
         </div>
-      </section>
 
-      <div className="border-t border-zinc-800/50" />
-
-      {/* Reduce Motion */}
-      <section>
-        <label className="flex items-center gap-2.5 cursor-pointer">
+        <section className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: 'var(--text-muted, #7a756d)' }}>
+              Particle Density
+            </span>
+            <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-muted, #7a756d)' }}>{particleDensity}</span>
+          </div>
           <input
-            type="checkbox"
-            checked={reduceMotion}
-            onChange={(e) => setReduceMotion(e.target.checked)}
-            className="accent-[var(--accent-color)]"
+            type="range"
+            min={0}
+            max={300}
+            step={10}
+            value={particleDensity}
+            onChange={(e) => setParticleDensity(parseInt(e.target.value))}
+            className="w-full h-1"
+            style={{ accentColor: 'var(--accent, #c9a24d)' } as React.CSSProperties}
           />
-          <span className="text-xs text-zinc-300">Reduce motion</span>
-        </label>
-        <p className="text-[10px] text-zinc-500 mt-1 pl-[26px]">
-          Disables transitions and animations
-        </p>
-      </section>
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: 'var(--text-muted, #7a756d)' }}>
+              Particle Speed
+            </span>
+            <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-muted, #7a756d)' }}>{particleSpeed.toFixed(1)}x</span>
+          </div>
+          <input
+            type="range"
+            min={0.2}
+            max={3}
+            step={0.1}
+            value={particleSpeed}
+            onChange={(e) => setParticleSpeed(parseFloat(e.target.value))}
+            className="w-full h-1"
+            style={{ accentColor: 'var(--accent, #c9a24d)' } as React.CSSProperties}
+          />
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: 'var(--text-muted, #7a756d)' }}>
+              Particle Lifespan
+            </span>
+            <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-muted, #7a756d)' }}>
+              {particleLifespan.toFixed(1)}s
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0.5}
+            max={5}
+            step={0.1}
+            value={particleLifespan}
+            onChange={(e) => setParticleLifespan(parseFloat(e.target.value))}
+            className="w-full h-1"
+            style={{ accentColor: 'var(--accent, #c9a24d)' } as React.CSSProperties}
+          />
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: 'var(--text-muted, #7a756d)' }}>
+              Glass Blur
+            </span>
+            <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-muted, #7a756d)' }}>{glassBlur}px</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={40}
+            step={2}
+            value={glassBlur}
+            onChange={(e) => setGlassBlur(parseInt(e.target.value))}
+            className="w-full h-1"
+            style={{ accentColor: 'var(--accent, #c9a24d)' } as React.CSSProperties}
+          />
+        </section>
+
+        <section>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={reduceMotion}
+              onChange={(e) => setReduceMotion(e.target.checked)}
+              style={{ accentColor: 'var(--accent, #c9a24d)' } as React.CSSProperties}
+            />
+            <span className="text-xs" style={{ color: 'var(--text-primary, #e8e4dc)' }}>Reduce motion</span>
+          </label>
+          <p className="text-[10px] mt-1 pl-5" style={{ color: 'var(--text-muted, #7a756d)' }}>Disables particle effects and animations</p>
+        </section>
+      </div>
 
       <div className="border-t border-zinc-800/50" />
 
       {/* Display / Zoom */}
-      <h3 className="text-lg font-semibold text-zinc-200">Display</h3>
+      <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary, #e8e4dc)' }}>Display</h3>
       <ZoomSlider />
     </div>
   );
@@ -109,15 +240,16 @@ function ZoomSlider() {
   return (
     <section className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-medium">
+        <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: 'var(--text-muted, #7a756d)' }}>
           UI Scale
         </span>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-zinc-500 tabular-nums">{zoomPct}%</span>
+          <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-muted, #7a756d)' }}>{zoomPct}%</span>
           {zoomPct !== 100 && (
             <button
               onClick={() => handleChange(100)}
-              className="text-[9px] text-zinc-500 hover:text-zinc-300 px-1.5 py-0.5 rounded border border-zinc-800/50 bg-zinc-800/50 transition-colors"
+              className="text-[9px] px-1.5 py-0.5 rounded border border-zinc-800/50 bg-zinc-800/50 transition-colors"
+              style={{ color: 'var(--text-muted, #7a756d)' }}
             >
               Reset
             </button>
@@ -131,9 +263,10 @@ function ZoomSlider() {
         step={5}
         value={zoomPct}
         onChange={(e) => handleChange(parseInt(e.target.value))}
-        className="w-full h-1 accent-[var(--accent-color)]"
+        className="w-full h-1"
+        style={{ accentColor: 'var(--accent-color)' } as React.CSSProperties}
       />
-      <p className="text-[10px] text-zinc-500">Same as Ctrl+/Ctrl- zoom. Affects all UI elements.</p>
+      <p className="text-[10px]" style={{ color: 'var(--text-muted, #7a756d)' }}>Same as Ctrl+/Ctrl- zoom. Affects all UI elements.</p>
     </section>
   );
 }
