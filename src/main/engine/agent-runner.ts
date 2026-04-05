@@ -138,13 +138,15 @@ export async function streamAgentChat(
 
         // Accumulate tool call fragments (same pattern as cliproxy.ts)
         // Cap at MAX_TOOL_CALLS_PER_TURN to prevent runaway models (Gemma 4 generates 600+)
+        let hitToolCap = false;
         if (delta?.tool_calls) {
           for (const tc of delta.tool_calls) {
             const idx = tc.index ?? 0;
 
-            // Stop accumulating if we've hit the cap
+            // BREAK the stream if model exceeds the cap (don't just skip — stop reading)
             if (idx >= MAX_TOOL_CALLS_PER_TURN && !pendingToolCalls.has(idx)) {
-              continue;
+              hitToolCap = true;
+              break;
             }
 
             if (!pendingToolCalls.has(idx)) {
@@ -160,6 +162,12 @@ export async function streamAgentChat(
             if (tc.function?.name) pending.name += tc.function.name;
             if (tc.function?.arguments) pending.arguments += tc.function.arguments;
           }
+        }
+
+        // If model is generating too many tool calls, stop reading the stream
+        if (hitToolCap) {
+          finishReason = 'tool_calls';
+          break;
         }
 
         if (choice.finish_reason) {
