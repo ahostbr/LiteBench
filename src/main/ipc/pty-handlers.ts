@@ -39,7 +39,9 @@ function flushPtyData(id: string): void {
   pendingData.delete(id);
   flushTimers.delete(id);
   for (const win of BrowserWindow.getAllWindows()) {
-    win.webContents.send(`pty:data:${id}`, data);
+    if (!win.isDestroyed() && !win.webContents.isLoading()) {
+      win.webContents.send(`pty:data:${id}`, data);
+    }
   }
 }
 
@@ -90,8 +92,14 @@ export function registerPtyHandlers(): void {
 
       sessions.set(id, { process: proc });
 
+      let dataReceived = false;
+
       // Debounced data forwarding (16ms batches)
       proc.onData((data: string) => {
+        if (!dataReceived) {
+          dataReceived = true;
+          console.log('[PTY] First data received for:', id);
+        }
         pendingData.set(id, (pendingData.get(id) ?? '') + data);
         if (!flushTimers.has(id)) {
           flushTimers.set(id, setTimeout(() => flushPtyData(id), 16));
@@ -100,7 +108,6 @@ export function registerPtyHandlers(): void {
 
       proc.onExit(({ exitCode }) => {
         console.log('[PTY] Exit:', { id, exitCode });
-        // Flush remaining data
         const timer = flushTimers.get(id);
         if (timer) clearTimeout(timer);
         flushPtyData(id);
@@ -110,6 +117,17 @@ export function registerPtyHandlers(): void {
       });
 
       console.log('[PTY] Spawned:', { id, pid: proc.pid });
+
+      // Liveness check — if no data after 3 seconds, the ConPTY Worker
+      // may have failed silently (no error handler on worker_threads.Worker).
+      // Send a newline to kick the shell and force output.
+      setTimeout(() => {
+        if (!dataReceived && sessions.has(id)) {
+          console.warn('[PTY] No data after 3s — sending nudge');
+          try { proc.write('\r'); } catch {}
+        }
+      }, 3000);
+
       return { id, pid: proc.pid };
     } catch (err) {
       console.error('[PTY] Spawn failed:', (err as Error).message);
