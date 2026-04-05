@@ -50,7 +50,7 @@ interface PendingToolCall {
 }
 
 const MAX_TOOL_ITERATIONS = 5;
-const MAX_TOOL_CALLS_PER_TURN = 10; // Cap tool calls per model turn — prevents runaway models (e.g. Gemma 4 spamming 600+)
+const MAX_TOOL_CALLS_PER_TURN = 3; // Cap tool calls per model turn — disciplined models call 1, allow up to 3
 
 export async function streamAgentChat(
   endpoint: Endpoint,
