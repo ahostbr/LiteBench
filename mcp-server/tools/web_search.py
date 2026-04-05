@@ -30,9 +30,12 @@ Regions: wt-wt (worldwide), us-en, uk-en, de-de, fr-fr, etc."""
         return "Error: 'query' is required."
 
     try:
-        from duckduckgo_search import DDGS
+        from ddgs import DDGS
     except ImportError:
-        return "Error: duckduckgo-search not installed. Run: pip install duckduckgo-search"
+        try:
+            from duckduckgo_search import DDGS
+        except ImportError:
+            return "Error: ddgs not installed. Run: pip install ddgs"
 
     if action == "search":
         try:
