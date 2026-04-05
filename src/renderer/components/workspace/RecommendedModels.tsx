@@ -8,7 +8,7 @@ interface ModelEntry {
   grade: string;
   size: string;
   notes: string;
-  lmStudioSearch: string;
+  hfUrl: string;
   tier: 'gold' | 'silver' | 'bronze';
 }
 
@@ -21,7 +21,7 @@ const MODELS: ModelEntry[] = [
     grade: 'A+',
     size: '~15 GB',
     notes: 'Best overall agent. Fast, reliable, perfect tool use.',
-    lmStudioSearch: 'devstral-small-2',
+    hfUrl: 'https://huggingface.co/lmstudio-community/Devstral-Small-2-24B-Instruct-2512-GGUF',
     tier: 'gold',
   },
   {
@@ -32,7 +32,7 @@ const MODELS: ModelEntry[] = [
     grade: 'A+',
     size: '~11 GB',
     notes: 'Plans before acting. Claude-quality reasoning in a local model.',
-    lmStudioSearch: 'gemma-4-e2b-claude-opus-distill',
+    hfUrl: 'https://huggingface.co/armand0e/gemma-4-E2B-it-Claude-Opus-Distill-GGUF',
     tier: 'gold',
   },
   {
@@ -43,7 +43,7 @@ const MODELS: ModelEntry[] = [
     grade: 'A+',
     size: '~21 GB',
     notes: 'Chain-of-thought reasoning. Needs 32GB+ VRAM.',
-    lmStudioSearch: 'gemma-4-31b-claude-opus-distill',
+    hfUrl: 'https://huggingface.co/TeichAI/gemma-4-31B-it-Claude-Opus-Distill-GGUF',
     tier: 'gold',
   },
   {
@@ -54,7 +54,7 @@ const MODELS: ModelEntry[] = [
     grade: 'A+',
     size: '~2.5 GB',
     notes: 'Best small model. Runs on any hardware. Perfect scores.',
-    lmStudioSearch: 'qwen3-4b',
+    hfUrl: 'https://huggingface.co/lmstudio-community/Qwen3-4B-Instruct-2507-GGUF',
     tier: 'gold',
   },
   {
@@ -65,7 +65,7 @@ const MODELS: ModelEntry[] = [
     grade: 'A+',
     size: '~18 GB',
     notes: 'Powerful but generates many tool calls. Needs stream cap.',
-    lmStudioSearch: 'gemma-4-31b-it',
+    hfUrl: 'https://huggingface.co/unsloth/gemma-4-31B-it-GGUF',
     tier: 'gold',
   },
   {
@@ -76,7 +76,7 @@ const MODELS: ModelEntry[] = [
     grade: 'A+',
     size: '~4 GB',
     notes: 'Tiny and perfect. Great for laptops.',
-    lmStudioSearch: 'gemma-4-e4b-it',
+    hfUrl: 'https://huggingface.co/ggml-org/gemma-4-E4B-it-GGUF',
     tier: 'gold',
   },
   {
@@ -87,7 +87,7 @@ const MODELS: ModelEntry[] = [
     grade: 'A',
     size: '~18 GB',
     notes: 'Mixture-of-experts. Only 4B active params, fast inference.',
-    lmStudioSearch: 'gemma-4-26b-a4b',
+    hfUrl: 'https://huggingface.co/lmstudio-community/gemma-4-26B-A4B-it-GGUF',
     tier: 'silver',
   },
   {
@@ -98,7 +98,7 @@ const MODELS: ModelEntry[] = [
     grade: 'A',
     size: '~2.4 GB',
     notes: 'Uses XML tool calling fallback. Reliable for its size.',
-    lmStudioSearch: 'gemma-3-4b-it',
+    hfUrl: 'https://huggingface.co/MaziyarPanahi/gemma-3-4b-it-GGUF',
     tier: 'silver',
   },
   {
@@ -109,7 +109,7 @@ const MODELS: ModelEntry[] = [
     grade: 'B+',
     size: '~528 MB',
     notes: 'Remarkable for sub-1B. Runs on anything with a CPU.',
-    lmStudioSearch: 'qwen3.5-0.8b-opus-distill',
+    hfUrl: 'https://huggingface.co/amkkk/Qwen3.5-0.8B-GGUF-uncensored-opus-distill',
     tier: 'bronze',
   },
   {
@@ -120,7 +120,7 @@ const MODELS: ModelEntry[] = [
     grade: 'B',
     size: '~940 MB',
     notes: 'Salesforce function-calling specialist. Good at calling, weaker at synthesis.',
-    lmStudioSearch: 'xLAM-2-1b-fc-r',
+    hfUrl: 'https://huggingface.co/Salesforce/xLAM-2-1b-fc-r-gguf',
     tier: 'bronze',
   },
 ];
@@ -243,7 +243,7 @@ export function RecommendedModels() {
                 </td>
                 <td className="px-2 py-2.5 text-center">
                   <a
-                    href={`https://lmstudio.ai/models?q=${encodeURIComponent(model.lmStudioSearch)}`}
+                    href={model.hfUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors hover:opacity-80"
@@ -253,7 +253,7 @@ export function RecommendedModels() {
                     }}
                     onClick={(e) => {
                       e.preventDefault();
-                      window.open(`https://lmstudio.ai/models?q=${encodeURIComponent(model.lmStudioSearch)}`, '_blank');
+                      window.open(model.hfUrl, '_blank');
                     }}
                   >
                     <ExternalLink className="w-3 h-3" />
