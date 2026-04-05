@@ -63,15 +63,22 @@ export function registerPtyHandlers(): void {
       }
     }
 
-    // Fallback: child_process with pipes
-    const proc = spawn(shell, shellArgs, {
+    // Fallback: child_process — use conpty via cmd wrapper
+    console.log('[PTY] Using child_process fallback for:', shell);
+    const proc = spawn(process.env.ComSpec || 'cmd.exe', ['/c', shell, ...shellArgs], {
       cwd,
       env: { ...process.env, TERM: 'xterm-256color' },
-      shell: true,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     sessions.set(id, { type: 'process', childProcess: proc, sender: event.sender });
+
+    // Send welcome message immediately so terminal isn't blank
+    setTimeout(() => {
+      try {
+        event.sender.send(`pty:data:${id}`, `\x1b[33mLiteBench Terminal\x1b[0m\r\nType 'claude' to start the AI orchestrator.\r\n\r\n`);
+      } catch {}
+    }, 100);
 
     proc.stdout?.on('data', (data: Buffer) => {
       try { event.sender.send(`pty:data:${id}`, data.toString()); } catch {}
@@ -87,7 +94,9 @@ export function registerPtyHandlers(): void {
     });
 
     proc.on('error', (err) => {
-      try { event.sender.send(`pty:data:${id}`, `\r\nError: ${err.message}\r\n`); } catch {}
+      try {
+        event.sender.send(`pty:data:${id}`, `\r\n\x1b[31mError: ${err.message}\x1b[0m\r\n`);
+      } catch {}
     });
 
     return { id, pid: proc.pid ?? 0 };
