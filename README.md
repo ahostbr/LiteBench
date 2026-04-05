@@ -31,7 +31,11 @@ Every existing benchmark for local models either:
 
 ![Dashboard — Score trends, recent runs, benchmark configuration](docs/images/litebench-dashboard.jpg)
 
-![Agent Chat — Browser automation results with tool call cards](docs/images/litebench-agent-chat.jpg)
+![Run Detail — Score gauge, category breakdown, per-test results](docs/images/litebench-run-detail.jpg)
+
+![Charts — Token breakdown, speed vs score scatter, elapsed time](docs/images/litebench-charts.jpg)
+
+![Agent Chat + Benchmark Runner — Tool history and suite config](docs/images/litebench-agent-runner.jpg)
 
 ## Model Leaderboard
 
