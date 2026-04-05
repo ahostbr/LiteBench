@@ -19,9 +19,21 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100 relative">
-      {isMatrix && !reduceMotion ? (
-        <MatrixRain />
-      ) : (
+      {/* Theme background: circuit board for Lite Suite/Oscura, Matrix rain for Matrix */}
+      {(activeTheme === 'lite-suite' || activeTheme === 'oscura-midnight') && (
+        <div
+          className="fixed inset-0 pointer-events-none"
+          style={{
+            backgroundImage: 'url(../resources/hero-background.png)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            opacity: 0.15,
+            zIndex: 0,
+          }}
+        />
+      )}
+      <MatrixRain />
+      {!isMatrix && (
         <EmberSparks
           particleDensity={particleDensity}
           particleSpeed={particleSpeed}

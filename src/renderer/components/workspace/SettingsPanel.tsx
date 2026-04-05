@@ -28,6 +28,8 @@ export function SettingsPanel() {
     setGlassBlur,
     reduceMotion,
     setReduceMotion,
+    matrixRainOpacity,
+    setMatrixRainOpacity,
   } = useThemeStore();
 
   return (
@@ -202,6 +204,28 @@ export function SettingsPanel() {
             style={{ accentColor: 'var(--accent, #c9a24d)' } as React.CSSProperties}
           />
         </section>
+
+        {activeTheme === 'matrix' && (
+          <section className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: 'var(--text-muted, #7a756d)' }}>
+                Matrix Rain Opacity
+              </span>
+              <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-muted, #7a756d)' }}>{matrixRainOpacity}%</span>
+            </div>
+            <input
+              type="range"
+              min={5}
+              max={100}
+              step={5}
+              value={matrixRainOpacity}
+              onChange={(e) => setMatrixRainOpacity(parseInt(e.target.value))}
+              className="w-full h-1"
+              style={{ accentColor: '#33ff33' } as React.CSSProperties}
+            />
+            <p className="text-[10px]" style={{ color: 'var(--text-muted, #7a756d)' }}>Lower values make the rain more subtle so text is easier to read</p>
+          </section>
+        )}
 
         <section>
           <label className="flex items-center gap-2">

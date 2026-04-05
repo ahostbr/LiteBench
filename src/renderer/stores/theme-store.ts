@@ -12,6 +12,7 @@ interface ThemeState {
   particleLifespan: number;
   particleColor: string;
   glowColor: string;
+  matrixRainOpacity: number;
   setActiveTheme: (id: string) => void;
   setAccentColor: (color: string) => void;
   setGlassBlur: (blur: number) => void;
@@ -21,6 +22,7 @@ interface ThemeState {
   setParticleLifespan: (v: number) => void;
   setParticleColor: (color: string) => void;
   setGlowColor: (color: string) => void;
+  setMatrixRainOpacity: (v: number) => void;
 }
 
 export const useThemeStore = create<ThemeState>()(
@@ -35,6 +37,7 @@ export const useThemeStore = create<ThemeState>()(
       particleLifespan: 2,
       particleColor: '',
       glowColor: '',
+      matrixRainOpacity: 40,
       setActiveTheme: (id) => set({ activeTheme: id }),
       setAccentColor: (color) => set({ accentColor: color }),
       setGlassBlur: (blur) => set({ glassBlur: blur }),
@@ -44,6 +47,7 @@ export const useThemeStore = create<ThemeState>()(
       setParticleLifespan: (v) => set({ particleLifespan: v }),
       setParticleColor: (color) => set({ particleColor: color }),
       setGlowColor: (color) => set({ glowColor: color }),
+      setMatrixRainOpacity: (v) => set({ matrixRainOpacity: v }),
     }),
     {
       name: 'litebench-theme',
