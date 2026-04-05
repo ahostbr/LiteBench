@@ -61,10 +61,12 @@
       "output": "dist"
     },
     "files": [
-      "out/**/*"
+      "out/**/*",
+      "mcp-server/**/*"
     ],
     "asarUnpack": [
-      "node_modules/better-sqlite3/**"
+      "node_modules/better-sqlite3/**",
+      "mcp-server/**/*"
     ],
     "win": {
       "target": "nsis",
