@@ -7,6 +7,7 @@ import { registerAgentHandlers } from './ipc/agent-handlers';
 import { registerBrowserHandlers } from './ipc/browser-handlers';
 import { registerEndpointsHandlers } from './ipc/endpoints-handlers';
 import { registerSuitesHandlers } from './ipc/suites-handlers';
+import { registerPtyHandlers, destroyAllPtySessions } from './ipc/pty-handlers';
 import {
   bindWindowStateEvents,
   registerWindowHandlers,
@@ -176,6 +177,7 @@ app.whenReady().then(() => {
   registerSuitesHandlers();
   registerBenchmarksHandlers();
   registerAgentHandlers();
+  registerPtyHandlers();
   registerBrowserHandlers();
 
   createMainWindow();
@@ -188,6 +190,7 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
+  destroyAllPtySessions();
   closeDatabase();
 });
 

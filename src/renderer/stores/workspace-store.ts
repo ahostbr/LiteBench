@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type PanelType = 'dashboard' | 'runner' | 'results' | 'tests' | 'settings' | 'agent' | 'browser' | 'agent-benchmark';
+export type PanelType = 'dashboard' | 'runner' | 'results' | 'tests' | 'settings' | 'agent' | 'browser' | 'agent-benchmark' | 'terminal';
 
 export interface WorkspacePanel {
   id: string;
@@ -17,6 +17,7 @@ const PANEL_TITLES: Record<PanelType, string> = {
   agent: 'Agent Chat',
   browser: 'Browser',
   'agent-benchmark': 'Agent Benchmark',
+  terminal: 'Terminal',
 };
 
 // All panel types are singletons in LiteBench

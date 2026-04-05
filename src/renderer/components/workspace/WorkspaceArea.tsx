@@ -14,6 +14,9 @@ import { SettingsPanel } from '@/components/workspace/SettingsPanel';
 import { AgentPanel } from '@/components/agent/AgentPanel';
 import { AgentBenchmarkPanel } from '@/components/agent-benchmark/AgentBenchmarkPanel';
 import { BrowserPanel } from '@/components/browser/BrowserPanel';
+import { lazy, Suspense } from 'react';
+
+const TerminalPanel = lazy(() => import('@/components/terminal/TerminalPanel').then(m => ({ default: m.TerminalPanel })));
 
 function ScrollWrap({ children }: { children: React.ReactNode }) {
   return <div className="h-full overflow-y-auto p-6">{children}</div>;
@@ -39,6 +42,8 @@ function PanelContent({ panel }: { panel: WorkspacePanel }) {
       return <AgentBenchmarkPanel />;
     case 'browser':
       return <BrowserPanel />;
+    case 'terminal':
+      return <Suspense fallback={<div className="h-full bg-zinc-950" />}><TerminalPanel /></Suspense>;
     default:
       return null;
   }

@@ -278,6 +278,25 @@ const api: LiteBenchApi = {
     consoleLogs: (sessionId) => ipcRenderer.invoke('bench:browser:console-logs', sessionId),
     getUrl: (sessionId) => ipcRenderer.invoke('bench:browser:get-url', sessionId),
   },
+
+  // PTY (terminal)
+  pty: {
+    create: (opts?: { cwd?: string; cmd?: string; args?: string[] }) =>
+      ipcRenderer.invoke('pty:create', opts) as Promise<{ id: string; pid: number }>,
+    write: (id: string, data: string) => ipcRenderer.send('pty:write', id, data),
+    resize: (id: string, cols: number, rows: number) => ipcRenderer.send('pty:resize', id, cols, rows),
+    destroy: (id: string) => ipcRenderer.invoke('pty:destroy', id),
+    onData: (id: string, cb: (data: string) => void) => {
+      const handler = (_: unknown, data: string) => cb(data);
+      ipcRenderer.on(`pty:data:${id}`, handler);
+      return () => ipcRenderer.removeListener(`pty:data:${id}`, handler);
+    },
+    onExit: (id: string, cb: (code: number) => void) => {
+      const handler = (_: unknown, code: number) => cb(code);
+      ipcRenderer.on(`pty:exit:${id}`, handler);
+      return () => ipcRenderer.removeListener(`pty:exit:${id}`, handler);
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld('liteBench', api);
