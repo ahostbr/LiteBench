@@ -37,6 +37,29 @@ export function SettingsPanel() {
       <div className="flex flex-col gap-6">
         <h3 className="font-display italic text-xl" style={{ color: 'var(--text-primary, #e8e4dc)' }}>Appearance</h3>
 
+        {/* Matrix Rain Opacity — top of settings when active */}
+        {activeTheme === 'matrix' && (
+          <section className="flex flex-col gap-2 p-3 rounded-lg" style={{ backgroundColor: 'rgba(51, 255, 51, 0.06)', border: '1px solid rgba(51, 255, 51, 0.15)' }}>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: '#33ff33' }}>
+                Matrix Rain Opacity
+              </span>
+              <span className="text-[10px] tabular-nums" style={{ color: '#33ff33' }}>{matrixRainOpacity}%</span>
+            </div>
+            <input
+              type="range"
+              min={5}
+              max={100}
+              step={5}
+              value={matrixRainOpacity}
+              onChange={(e) => setMatrixRainOpacity(parseInt(e.target.value))}
+              className="w-full h-1"
+              style={{ accentColor: '#33ff33' } as React.CSSProperties}
+            />
+            <p className="text-[10px]" style={{ color: 'var(--text-muted, #7a756d)' }}>Lower values make the rain more subtle so text is easier to read</p>
+          </section>
+        )}
+
         {/* Theme selector */}
         <section className="flex flex-col gap-2">
           <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: 'var(--text-muted, #7a756d)' }}>
@@ -204,28 +227,6 @@ export function SettingsPanel() {
             style={{ accentColor: 'var(--accent, #c9a24d)' } as React.CSSProperties}
           />
         </section>
-
-        {activeTheme === 'matrix' && (
-          <section className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: 'var(--text-muted, #7a756d)' }}>
-                Matrix Rain Opacity
-              </span>
-              <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-muted, #7a756d)' }}>{matrixRainOpacity}%</span>
-            </div>
-            <input
-              type="range"
-              min={5}
-              max={100}
-              step={5}
-              value={matrixRainOpacity}
-              onChange={(e) => setMatrixRainOpacity(parseInt(e.target.value))}
-              className="w-full h-1"
-              style={{ accentColor: '#33ff33' } as React.CSSProperties}
-            />
-            <p className="text-[10px]" style={{ color: 'var(--text-muted, #7a756d)' }}>Lower values make the rain more subtle so text is easier to read</p>
-          </section>
-        )}
 
         <section>
           <label className="flex items-center gap-2">
