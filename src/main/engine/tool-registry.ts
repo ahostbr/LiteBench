@@ -343,8 +343,8 @@ toolRegistry.register({
   executor: async (args) => {
     const url = args.url as string;
     const sessionId = requireBrowserSession();
-    navigateTo(sessionId, url);
-    return `Navigated to ${url}`;
+    const result = await navigateTo(sessionId, url);
+    return `Page loaded: "${result.title}" at ${result.url}`;
   },
 });
 
@@ -355,7 +355,7 @@ toolRegistry.register({
     function: {
       name: 'browser_read_page',
       description:
-        'Read the current browser page — returns a structured list of interactive elements (links, buttons, inputs) with their indices. Use this to understand the page before clicking or typing.',
+        'Read the current browser page — returns the page title, visible text content, and a list of clickable elements with [index] numbers. Use after browser_navigate to read page content.',
       parameters: {
         type: 'object',
         properties: {},
@@ -365,8 +365,49 @@ toolRegistry.register({
   },
   executor: async () => {
     const sessionId = requireBrowserSession();
-    const result = await readPage(sessionId);
-    return JSON.stringify(result);
+    const raw = (await readPage(sessionId)) as {
+      url: string;
+      title: string;
+      elements: Array<{ index: number; tag: string; text?: string; href?: string; type?: string; placeholder?: string; role?: string; value?: string; ariaLabel?: string }>;
+      visibleText: string;
+    };
+
+    // Format as clean text that local models can easily parse
+    const lines: string[] = [];
+    lines.push(`# ${raw.title}`);
+    lines.push(`URL: ${raw.url}`);
+    lines.push('');
+
+    // Page text (truncated for model context)
+    const text = raw.visibleText.substring(0, 3000).trim();
+    if (text) {
+      lines.push('## Page Content');
+      lines.push(text);
+      lines.push('');
+    }
+
+    // Interactive elements — simplified, no bounds
+    if (raw.elements.length > 0) {
+      lines.push('## Interactive Elements');
+      for (const el of raw.elements.slice(0, 50)) {
+        const label = el.text || el.ariaLabel || el.placeholder || el.value || '';
+        const short = label.substring(0, 80).replace(/\n/g, ' ').trim();
+        if (el.tag === 'a' && el.href) {
+          lines.push(`[${el.index}] link: "${short}" → ${el.href}`);
+        } else if (el.tag === 'input') {
+          lines.push(`[${el.index}] input(${el.type || 'text'}): ${short || el.placeholder || ''}`);
+        } else if (el.tag === 'button' || el.role === 'button') {
+          lines.push(`[${el.index}] button: "${short}"`);
+        } else {
+          lines.push(`[${el.index}] ${el.tag}: "${short}"`);
+        }
+      }
+      if (raw.elements.length > 50) {
+        lines.push(`... and ${raw.elements.length - 50} more elements (scroll to see more)`);
+      }
+    }
+
+    return lines.join('\n');
   },
 });
 

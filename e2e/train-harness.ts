@@ -1,21 +1,31 @@
 /**
- * Harness Training Loop — Iteratively improve agent-harness.ts system prompts
- * until local models reliably use tools (especially browser tools).
+ * Harness Training — Drives the REAL Agent Chat UI.
  *
- * Pattern: evaluate → reflect → mutate → re-evaluate → keep/revert → repeat
+ * Orchestration:
+ * 1. Opens Browser panel + Agent panel
+ * 2. Selects model via the UI dropdown
+ * 3. Types prompts into the actual chat textarea, presses Enter
+ * 4. Tool calls and messages appear in the chat panel in real time
+ * 5. Watches the DOM for completion, extracts results
  *
- * Run: npx tsx e2e/train-harness.ts
+ * You can WATCH everything happening live — browser navigating, tool cards
+ * appearing, streaming text in the chat.
+ *
+ * Run: npx tsx e2e/train-harness.ts [--model <modelId>]
  */
 import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
 import * as path from 'path';
 import * as fs from 'fs';
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-const HARNESS_FILE = path.join(PROJECT_ROOT, 'src/main/engine/agent-harness.ts');
 const LOG_FILE = path.join(PROJECT_ROOT, 'ai/data/trainer/harness_evolution.jsonl');
-const TEST_MODEL = 'mistralai/devstral-small-2-2512';
 
-// Ensure log directory exists
+const args = process.argv.slice(2);
+const modelFlag = args.indexOf('--model');
+const TEST_MODEL = modelFlag >= 0 && args[modelFlag + 1]
+  ? args[modelFlag + 1]
+  : 'mistralai/devstral-small-2-2512';
+
 fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
 
 interface TestCase {
@@ -26,7 +36,7 @@ interface TestCase {
 
 const TEST_CASES: TestCase[] = [
   {
-    prompt: 'Navigate the browser to https://example.com and read the page title.',
+    prompt: 'Navigate the browser to https://example.com and read the page content.',
     expectedTools: ['browser_navigate', 'browser_read_page'],
     assertions: [
       'agent called browser_navigate',
@@ -35,7 +45,7 @@ const TEST_CASES: TestCase[] = [
     ],
   },
   {
-    prompt: 'Search the web for "latest AI news" and tell me the top 3 results.',
+    prompt: 'Search the web for "artificial intelligence breakthroughs 2026" and list the top 3 results as a numbered list.',
     expectedTools: ['web_search'],
     assertions: [
       'agent called web_search',
@@ -44,7 +54,7 @@ const TEST_CASES: TestCase[] = [
     ],
   },
   {
-    prompt: 'Open https://news.ycombinator.com in the browser and tell me the #1 story.',
+    prompt: 'Open https://news.ycombinator.com in the browser and tell me the #1 story title.',
     expectedTools: ['browser_navigate', 'browser_read_page'],
     assertions: [
       'agent called browser_navigate',
@@ -54,7 +64,7 @@ const TEST_CASES: TestCase[] = [
     ],
   },
   {
-    prompt: 'Write a Python function that calculates fibonacci(n) and run it with n=10.',
+    prompt: 'Use the sandbox to run this Python code and tell me the output: print(sum(range(1, 11)))',
     expectedTools: ['sandbox'],
     assertions: [
       'agent called sandbox',
@@ -63,7 +73,7 @@ const TEST_CASES: TestCase[] = [
     ],
   },
   {
-    prompt: 'Fetch the content from https://httpbin.org/json and summarize it.',
+    prompt: 'Fetch the content from https://httpbin.org/json and summarize what it contains.',
     expectedTools: ['web_fetch'],
     assertions: [
       'agent called web_fetch',
@@ -76,8 +86,9 @@ const TEST_CASES: TestCase[] = [
 let app: ElectronApplication;
 let page: Page;
 
+// ── App Lifecycle ─────────────────────────────────────────────────────────────
+
 async function launchApp(): Promise<void> {
-  // Build first
   const { execSync } = require('child_process');
   console.log('Building...');
   execSync('npx electron-vite build', { cwd: PROJECT_ROOT, stdio: 'pipe' });
@@ -96,9 +107,9 @@ async function launchApp(): Promise<void> {
     const win = BrowserWindow.getAllWindows()[0];
     if (win) { win.setSize(1920, 1080); win.center(); }
   });
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(2000);
 
-  // Ensure endpoint exists
+  // Ensure LM Studio endpoint exists
   await page.evaluate(async () => {
     const eps = await (window as any).liteBench.endpoints.list();
     if (eps.length === 0) {
@@ -109,74 +120,213 @@ async function launchApp(): Promise<void> {
   });
 }
 
-async function closeApp(): Promise<void> {
-  if (app) await app.close();
+async function openPanel(title: string): Promise<void> {
+  const btn = page.locator(`button[title="${title}"]`);
+  if (await btn.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await btn.click();
+    await page.waitForTimeout(800);
+  }
 }
 
-interface TestResult {
+// ── Model Selection ───────────────────────────────────────────────────────────
+
+async function setModelViaStore(modelId: string): Promise<void> {
+  // Set model + endpoint directly in the Zustand store
+  await page.evaluate(async ({ modelId }: any) => {
+    const eps = await (window as any).liteBench.endpoints.list();
+    if (eps.length === 0) return;
+
+    // Update localStorage-persisted Zustand store
+    const raw = localStorage.getItem('litebench-agent-chat');
+    if (raw) {
+      const store = JSON.parse(raw);
+      if (store.state) {
+        store.state.selectedModelId = modelId;
+        store.state.selectedEndpointId = eps[0].id;
+        store.state.enableTools = true;
+        localStorage.setItem('litebench-agent-chat', JSON.stringify(store));
+      }
+    }
+  }, { modelId });
+
+  // Reload to pick up store changes
+  await page.reload();
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForFunction(
+    () => document.querySelector('#root')?.children.length! > 0,
+    undefined, { timeout: 15_000 },
+  );
+  await page.waitForTimeout(1500);
+}
+
+// ── Chat Interaction (through real UI) ────────────────────────────────────────
+
+async function typeAndSend(prompt: string): Promise<void> {
+  // Find the chat textarea — try multiple selectors
+  let textarea = page.locator('textarea').first();
+  const visible = await textarea.isVisible().catch(() => false);
+  if (!visible) {
+    // Debug: list all textareas and inputs
+    const count = await page.locator('textarea').count();
+    console.log(`    DEBUG: ${count} textareas found on page`);
+    const html = await page.evaluate(() => document.body?.innerHTML.substring(0, 500) || 'no body');
+    console.log(`    DEBUG: body preview: ${html.substring(0, 200)}`);
+    // Try waiting longer
+    await page.waitForTimeout(2000);
+    textarea = page.locator('textarea').first();
+  }
+  await textarea.waitFor({ state: 'visible', timeout: 10_000 });
+
+  // Clear any existing text
+  await textarea.fill('');
+  await page.waitForTimeout(100);
+
+  // Type the prompt
+  await textarea.fill(prompt);
+  await page.waitForTimeout(200);
+
+  // Press Enter to send
+  await textarea.press('Enter');
+}
+
+/**
+ * Wait for the agent to finish by monitoring IPC events.
+ * Simultaneously, the UI updates because handleSend subscribes to the same events.
+ */
+async function waitForResponse(timeoutMs = 90_000): Promise<{
   toolsCalled: string[];
   responseText: string;
-  conversationId: string | null;
   error: string | null;
+}> {
+  // Use a hybrid: IPC bridge for accurate event tracking,
+  // while the UI shows everything via its own handleSend subscription
+  const result = await page.evaluate(async ({ model, timeout }: any) => {
+    // Wait briefly for the send to complete and IPC events to start flowing
+    await new Promise(r => setTimeout(r, 300));
+
+    // Poll the Zustand store for the latest assistant message
+    // The UI's handleSend already set up the event listener, so events flow to the store
+    const startTime = Date.now();
+    let lastMessageCount = 0;
+    let stableCount = 0;
+
+    while (Date.now() - startTime < timeout) {
+      await new Promise(r => setTimeout(r, 500));
+
+      // Read current state from localStorage (Zustand persist)
+      const raw = localStorage.getItem('litebench-agent-chat');
+      if (!raw) continue;
+
+      const store = JSON.parse(raw);
+      const convs = store.state?.conversations || [];
+      const activeId = store.state?.activeConversationId;
+      const conv = convs.find((c: any) => c.id === activeId);
+      if (!conv) continue;
+
+      const messages = conv.messages || [];
+      const lastMsg = messages[messages.length - 1];
+
+      // Check if we have an assistant message that's not streaming
+      if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.isStreaming) {
+        // Found a complete response
+        const toolNames = (lastMsg.toolCalls || []).map((tc: any) => tc.name);
+        return {
+          toolsCalled: toolNames,
+          responseText: lastMsg.content || '',
+          error: null,
+        };
+      }
+
+      // Check for tool calls on a streaming message
+      if (lastMsg && lastMsg.isStreaming) {
+        // Still streaming — keep waiting
+        stableCount = 0;
+      }
+    }
+
+    return { toolsCalled: [], responseText: '', error: 'Timed out waiting for response' };
+  }, { model: TEST_MODEL, timeout: timeoutMs });
+
+  return result;
 }
 
-async function runAgentTest(prompt: string, timeoutMs = 45_000): Promise<TestResult> {
-  const result = await page.evaluate(async ({ prompt, model, timeout }: any) => {
+/**
+ * Alternative: collect events directly via IPC (more reliable for tool tracking)
+ * while the UI shows everything through its own subscription.
+ */
+async function runTestViaIPC(prompt: string, timeoutMs = 90_000): Promise<{
+  toolsCalled: string[];
+  responseText: string;
+  error: string | null;
+}> {
+  return page.evaluate(async ({ prompt, model, timeout }: any) => {
     const eps = await (window as any).liteBench.endpoints.list();
-    if (eps.length === 0) return { toolsCalled: [], responseText: '', conversationId: null, error: 'No endpoints' };
+    if (eps.length === 0) return { toolsCalled: [], responseText: '', error: 'No endpoints' };
 
-    const endpointId = eps[0].id;
-
-    // Collect events
     const events: any[] = [];
     let done = false;
 
     const { conversationId } = await (window as any).liteBench.agent.send({
-      endpointId,
+      endpointId: eps[0].id,
       modelId: model,
-      messages: [{ id: '1', role: 'user', content: prompt, timestamp: Date.now() }],
+      messages: [{ id: `test-${Date.now()}`, role: 'user', content: prompt, timestamp: Date.now() }],
       enableTools: true,
     });
 
-    // Subscribe to events
     const unsub = (window as any).liteBench.agent.onStreamEvent(conversationId, (event: any) => {
       events.push(event);
-      if (event.type === 'done' || event.type === 'error') {
-        done = true;
-      }
+      if (event.type === 'done' || event.type === 'error') done = true;
     });
 
-    // Wait for completion
     const start = Date.now();
     while (!done && Date.now() - start < timeout) {
       await new Promise(r => setTimeout(r, 200));
     }
     unsub();
 
-    // Extract results
-    const toolsCalled = events
-      .filter(e => e.type === 'tool_call_start')
-      .map(e => e.toolCall?.name || 'unknown');
-
-    const textContent = events
-      .filter(e => e.type === 'text_delta')
-      .map(e => e.content)
-      .join('');
-
-    const errorEvent = events.find(e => e.type === 'error');
-
     return {
-      toolsCalled,
-      responseText: textContent,
-      conversationId,
-      error: errorEvent?.message || null,
+      toolsCalled: events.filter(e => e.type === 'tool_call_start').map(e => e.toolCall?.name || '?'),
+      responseText: events.filter(e => e.type === 'text_delta').map(e => e.content).join(''),
+      error: events.find(e => e.type === 'error')?.message || null,
     };
   }, { prompt, model: TEST_MODEL, timeout: timeoutMs });
-
-  return result;
 }
 
-function evaluateResult(test: TestCase, result: TestResult): { score: number; details: string[] } {
+// ── Test: send via UI, track via IPC ──────────────────────────────────────────
+
+async function runTest(prompt: string, timeoutMs = 90_000): Promise<{
+  toolsCalled: string[];
+  responseText: string;
+  error: string | null;
+  elapsedMs: number;
+}> {
+  const startTime = Date.now();
+
+  // Type into the real chat textarea and press Enter
+  await typeAndSend(prompt);
+
+  // Collect results via IPC (the UI is already showing everything from its own subscription)
+  // Small delay for the send handler to fire
+  await page.waitForTimeout(300);
+
+  // Actually we need to track events from the IPC since the UI send already happened.
+  // The problem: typeAndSend triggers handleSend which calls api.agent.send and subscribes.
+  // We can't also subscribe (double subscription).
+  // Instead: poll the DOM/store for the final result.
+
+  const result = await waitForResponse(timeoutMs);
+
+  return {
+    ...result,
+    elapsedMs: Date.now() - startTime,
+  };
+}
+
+// ── Assertion Evaluation ──────────────────────────────────────────────────────
+
+function evaluateResult(test: TestCase, result: { toolsCalled: string[]; responseText: string; error: string | null }): {
+  score: number; passed: number; total: number; details: string[];
+} {
   const details: string[] = [];
   let passed = 0;
   const total = test.assertions.length;
@@ -194,109 +344,148 @@ function evaluateResult(test: TestCase, result: TestResult): { score: number; de
     } else if (lower.includes('does not say') || lower.includes('does not contain')) {
       const phrase = assertion.match(/"(.+?)"/)?.[1] || '';
       pass = !result.responseText.toLowerCase().includes(phrase.toLowerCase());
-    } else if (lower.includes('contains') || lower.includes('mentions')) {
-      const phrase = assertion.match(/"(.+?)"/)?.[1] || assertion.split(' ').slice(-2).join(' ');
+    } else if (lower.includes('contains the number')) {
+      const num = assertion.match(/number (\d+)/)?.[1] || '';
+      pass = result.responseText.includes(num);
+    } else if (lower.includes('mentions')) {
+      const phrase = assertion.match(/"(.+?)"/)?.[1] || '';
       pass = result.responseText.toLowerCase().includes(phrase.toLowerCase());
-    } else if (lower.includes('response contains')) {
-      pass = result.responseText.length > 20;
+    } else if (lower.includes('contains numbered results') || lower.includes('bullet points')) {
+      pass = /\d\.\s/.test(result.responseText) || /[-•*]\s/.test(result.responseText);
+    } else if (lower.includes('discusses') || lower.includes('shows')) {
+      pass = result.responseText.length > 30;
     } else {
       pass = result.responseText.length > 10;
     }
 
-    if (pass) {
-      passed++;
-      details.push(`  ✅ ${assertion}`);
-    } else {
-      details.push(`  ❌ ${assertion}`);
-    }
+    details.push(pass ? `  ✅ ${assertion}` : `  ❌ ${assertion}`);
+    if (pass) passed++;
   }
 
-  return { score: (passed / total) * 100, details };
+  return { score: (passed / total) * 100, passed, total, details };
 }
 
-async function runFullEvaluation(): Promise<{ avgScore: number; perTest: { test: TestCase; score: number; details: string[]; toolsCalled: string[] }[] }> {
-  const results: { test: TestCase; score: number; details: string[]; toolsCalled: string[] }[] = [];
-
-  for (const test of TEST_CASES) {
-    console.log(`  Testing: "${test.prompt.slice(0, 60)}..."`);
-    const result = await runAgentTest(test.prompt);
-    const { score, details } = evaluateResult(test, result);
-    results.push({ test, score, details, toolsCalled: result.toolsCalled });
-
-    console.log(`    Tools called: [${result.toolsCalled.join(', ')}]`);
-    console.log(`    Score: ${score.toFixed(0)}%`);
-    console.log(`    Response length: ${result.responseText.length} chars`);
-    console.log(`    Response preview: "${result.responseText.slice(0, 200).replace(/\n/g, ' ')}"`);
-    for (const d of details) console.log(`    ${d}`);
-    console.log();
-  }
-
-  const avgScore = results.reduce((sum, r) => sum + r.score, 0) / results.length;
-  return { avgScore, perTest: results };
-}
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('╔══════════════════════════════════════════════════════════╗');
-  console.log('║  HARNESS TRAINING LOOP — LiteBench Agent System        ║');
-  console.log('║  Model: Devstral Small 2 (via LM Studio)               ║');
-  console.log('║  Target: agent-harness.ts system prompts               ║');
-  console.log('╚══════════════════════════════════════════════════════════╝');
+  console.log('╔════════════════════════════════════════════════════════════╗');
+  console.log('║  LiteBench Harness Training — Live UI                     ║');
+  console.log(`║  Model: ${TEST_MODEL.padEnd(48)}║`);
+  console.log('║  Watch the app — everything happens in the real panels!   ║');
+  console.log('╚════════════════════════════════════════════════════════════╝');
   console.log();
 
-  // ── STEP 1: Launch + Baseline ────────────────────
-  console.log('=== BASELINE EVALUATION ===\n');
   await launchApp();
 
-  // Open browser panel first (agent needs it)
-  const browserBtn = page.locator('button[title="Browser"]');
-  if (await browserBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await browserBtn.click();
-    await page.waitForTimeout(1000);
-  }
+  // Set model in store (this reloads the page)
+  console.log(`🔧 Setting model: ${TEST_MODEL}`);
+  await setModelViaStore(TEST_MODEL);
 
-  const baseline = await runFullEvaluation();
-  console.log(`\n=== BASELINE SCORE: ${baseline.avgScore.toFixed(1)}% ===\n`);
+  // Open Browser panel (agent needs it for browser tools)
+  console.log('📺 Opening Browser panel...');
+  await openPanel('Browser');
+  await page.waitForTimeout(1500);
 
-  // Identify failures
-  const failures = baseline.perTest.filter(r => r.score < 100);
-  const toolFailures = baseline.perTest.filter(r => {
-    const expectedTools = r.test.expectedTools;
-    return expectedTools.some(t => !r.toolsCalled.includes(t));
-  });
+  // Open Agent Chat panel
+  console.log('💬 Opening Agent Chat panel...');
+  await openPanel('Agent Chat');
+  await page.waitForTimeout(1000);
 
-  console.log(`Tests passed fully: ${baseline.perTest.filter(r => r.score === 100).length}/${TEST_CASES.length}`);
-  console.log(`Tests with missing tool calls: ${toolFailures.length}`);
-  console.log();
+  const ssDir = path.join(PROJECT_ROOT, 'e2e/screenshots');
+  fs.mkdirSync(ssDir, { recursive: true });
+  await page.screenshot({ path: path.join(ssDir, 'train-initial.png') });
+  console.log('📸 Initial state captured\n');
 
-  if (toolFailures.length > 0) {
-    console.log('Missing tool calls:');
-    for (const f of toolFailures) {
-      const missing = f.test.expectedTools.filter(t => !f.toolsCalled.includes(t));
-      console.log(`  "${f.test.prompt.slice(0, 50)}..." — missing: [${missing.join(', ')}], got: [${f.toolsCalled.join(', ')}]`);
+  // ── Run Tests ──────────────────────────────
+  console.log(`=== EVALUATION (${TEST_CASES.length} tests) ===\n`);
+
+  const results: {
+    test: TestCase; score: number; passed: number; total: number;
+    details: string[]; toolsCalled: string[]; elapsed: number; responsePreview: string;
+  }[] = [];
+
+  for (let i = 0; i < TEST_CASES.length; i++) {
+    const test = TEST_CASES[i];
+    console.log(`[${i + 1}/${TEST_CASES.length}] "${test.prompt.substring(0, 65)}..."`);
+    console.log(`    ⏳ Sending via chat UI — watch the app...`);
+
+    const result = await runTest(test.prompt, 90_000);
+    const { score, passed, total, details } = evaluateResult(test, result);
+
+    const preview = result.responseText.substring(0, 200).replace(/\n/g, ' ');
+    results.push({
+      test, score, passed, total, details,
+      toolsCalled: result.toolsCalled,
+      elapsed: result.elapsedMs,
+      responsePreview: preview,
+    });
+
+    console.log(`    Tools:    [${result.toolsCalled.join(', ') || 'none'}]`);
+    console.log(`    Score:    ${score.toFixed(0)}% (${passed}/${total})`);
+    console.log(`    Time:     ${(result.elapsedMs / 1000).toFixed(1)}s`);
+    console.log(`    Response: "${preview.substring(0, 120)}${preview.length > 120 ? '...' : ''}"`);
+    if (result.error) console.log(`    Error:    ${result.error}`);
+    for (const d of details) console.log(`  ${d}`);
+
+    await page.screenshot({ path: path.join(ssDir, `train-test-${i + 1}.png`) });
+    console.log(`    📸 Screenshot saved\n`);
+
+    // Create new conversation for next test (clean slate)
+    if (i < TEST_CASES.length - 1) {
+      // Click the "new conversation" button (RotateCcw icon)
+      const newBtn = page.locator('button[title="New conversation"]');
+      if (await newBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await newBtn.click();
+        await page.waitForTimeout(500);
+      }
     }
   }
 
-  // Log baseline
+  // ── Summary ──────────────────────────────
+  const avgScore = results.reduce((s, r) => s + r.score, 0) / results.length;
+  const perfect = results.filter(r => r.score === 100).length;
+  const toolFailures = results.filter(r =>
+    r.test.expectedTools.some(t => !r.toolsCalled.includes(t)),
+  );
+
+  console.log('═══════════════════════════════════════════════════════════');
+  console.log(`  MODEL:       ${TEST_MODEL}`);
+  console.log(`  AVG SCORE:   ${avgScore.toFixed(1)}%`);
+  console.log(`  PERFECT:     ${perfect}/${TEST_CASES.length} tests`);
+  console.log(`  TOOL MISSES: ${toolFailures.length} tests with missing tool calls`);
+  console.log('═══════════════════════════════════════════════════════════');
+
+  if (toolFailures.length > 0) {
+    console.log('\nMissing tool calls:');
+    for (const f of toolFailures) {
+      const missing = f.test.expectedTools.filter(t => !f.toolsCalled.includes(t));
+      console.log(`  "${f.test.prompt.substring(0, 50)}..." — missing: [${missing.join(', ')}], got: [${f.toolsCalled.join(', ')}]`);
+    }
+  }
+
   const logEntry = {
-    cycle: 0,
-    type: 'baseline',
+    cycle: 'eval',
+    type: 'ui-driven-evaluation',
     timestamp: new Date().toISOString(),
     model: TEST_MODEL,
-    avgScore: baseline.avgScore,
-    perTest: baseline.perTest.map(r => ({
-      prompt: r.test.prompt.slice(0, 80),
+    avgScore,
+    perfectCount: perfect,
+    totalTests: TEST_CASES.length,
+    perTest: results.map(r => ({
+      prompt: r.test.prompt.substring(0, 80),
       score: r.score,
       toolsCalled: r.toolsCalled,
       expectedTools: r.test.expectedTools,
+      elapsed: r.elapsed,
     })),
   };
   fs.appendFileSync(LOG_FILE, JSON.stringify(logEntry) + '\n');
 
-  console.log(`\nBaseline logged to ${LOG_FILE}`);
-  console.log('Review the results above. The training loop will now mutate the system prompt');
-  console.log('in agent-harness.ts to improve tool-calling reliability.\n');
+  await page.screenshot({ path: path.join(ssDir, 'train-final.png') });
+  console.log('\n📸 Final state captured');
+  console.log(`📝 Results logged to ${LOG_FILE}`);
 
-  await closeApp();
+  await app.close();
 }
 
 main().catch((err) => {

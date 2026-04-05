@@ -7,7 +7,7 @@ import type {
 } from '../../shared/types';
 import { executeTool } from './tool-executor';
 import { toolRegistry, setBrowserContextKey, cleanupBrowserSession } from './tool-registry';
-import { buildSystemPrompt, supportsNativeToolCalling } from './agent-harness';
+import { buildSystemPrompt, supportsNativeToolCalling, parseXMLToolCalls } from './agent-harness';
 
 type OpenAIMessage = OpenAI.Chat.ChatCompletionMessageParam;
 
@@ -176,7 +176,68 @@ export async function streamAgentChat(
       return;
     }
 
-    // No tool calls — we're done
+    // No native tool calls detected — check for XML tool calls (non-native models)
+    if (pendingToolCalls.size === 0 && !isNativeToolModel && enableTools && assistantContent) {
+      const { cleanText, toolCalls: xmlToolCalls } = parseXMLToolCalls(assistantContent);
+
+      if (xmlToolCalls.length > 0) {
+        // Emit the clean text (without XML tags) as the assistant content
+        if (cleanText) {
+          // Re-emit cleaned text (original text_deltas included the XML)
+        }
+
+        // Cap XML tool calls the same as native
+        const capped = xmlToolCalls.slice(0, MAX_TOOL_CALLS_PER_TURN);
+
+        // Build tool call objects and execute
+        const xmlToolCallObjects: AgentToolCall[] = capped.map((tc, i) => ({
+          id: `xml_call_${iteration}_${i}`,
+          name: tc.name,
+          arguments: tc.arguments,
+          status: 'running' as const,
+          startTime: Date.now(),
+        }));
+
+        for (const tc of xmlToolCallObjects) {
+          onEvent({ type: 'tool_call_start', toolCall: { ...tc } });
+        }
+
+        // Append assistant message as plain text (XML models don't use tool_calls API)
+        conversation.push({
+          role: 'assistant',
+          content: assistantContent,
+        });
+
+        // Execute and collect results
+        const xmlResults = await Promise.all(
+          xmlToolCallObjects.map(async (tc) => {
+            const result = await executeTool(tc.name, tc.arguments);
+            const isError = result.startsWith('Error:') || result.startsWith('Tool error');
+            onEvent({
+              type: 'tool_call_done',
+              toolCallId: tc.id,
+              result: isError ? undefined : result,
+              error: isError ? result : undefined,
+            });
+            return { name: tc.name, result };
+          }),
+        );
+
+        // Feed results back as a user message (XML models don't support tool role)
+        const resultText = xmlResults
+          .map((r) => `<tool_result>\n<name>${r.name}</name>\n<output>${r.result}</output>\n</tool_result>`)
+          .join('\n');
+        conversation.push({
+          role: 'user',
+          content: resultText,
+        });
+
+        // Loop back to let model respond with results
+        continue;
+      }
+    }
+
+    // No tool calls (native or XML) — we're done
     if (pendingToolCalls.size === 0) {
       onEvent({ type: 'done' });
       cleanupBrowserSession(browserKey);

@@ -57,12 +57,28 @@ export function destroySession(id: string, parentWindow: BrowserWindow): void {
   sessions.delete(id);
 }
 
-export function navigateTo(id: string, url: string): void {
+export async function navigateTo(id: string, url: string): Promise<{ url: string; title: string }> {
   const session = sessions.get(id);
-  if (!session) return;
+  if (!session) throw new Error(`No browser session: ${id}`);
   // Ensure protocol
   const target = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-  session.view.webContents.loadURL(target);
+
+  // Wait for page to finish loading (with timeout)
+  await Promise.race([
+    new Promise<void>((resolve) => {
+      session.view.webContents.once('did-finish-load', () => resolve());
+      session.view.webContents.loadURL(target);
+    }),
+    new Promise<void>((resolve) => setTimeout(resolve, 15_000)), // 15s timeout
+  ]);
+
+  // Small delay for JS-heavy pages to settle
+  await new Promise((r) => setTimeout(r, 500));
+
+  return {
+    url: session.view.webContents.getURL(),
+    title: session.view.webContents.getTitle(),
+  };
 }
 
 export function goBack(id: string): void {
