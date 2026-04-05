@@ -7,13 +7,14 @@
   "author": "Ryan Devlin",
   "packageManager": "pnpm@10.0.0",
   "scripts": {
-    "postinstall": "npx @electron/rebuild -m . -o better-sqlite3",
+    "postinstall": "node scripts/rebuild-native.mjs",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dist": "pnpm run build && electron-builder --win -c.win.signAndEditExecutable=false",
-    "dist:dir": "pnpm run build && electron-builder --win --dir"
+    "dist:dir": "pnpm run build && electron-builder --win --dir",
+    "rebuild": "node scripts/rebuild-native.mjs"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
@@ -71,7 +72,9 @@
     "asarUnpack": [
       "node_modules/better-sqlite3/**",
       "node_modules/node-pty/**",
-      "mcp-server/**/*"
+      "mcp-server/**/*",
+      "node_modules/.pnpm/node-pty@*/node_modules/node-pty/**",
+      "node_modules/.pnpm/better-sqlite3@*/node_modules/better-sqlite3/**"
     ],
     "win": {
       "target": "nsis",
