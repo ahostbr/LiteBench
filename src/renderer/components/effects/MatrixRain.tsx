@@ -1,124 +1,93 @@
-/**
- * Matrix Digital Rain Effect (from Kuroryuu)
- *
- * Authentic Matrix-style falling code animation.
- * Only renders when Matrix theme is active.
- * Uses half-width katakana + numbers like the original film.
- * Opacity controlled via theme store matrixRainOpacity (0-100).
- */
-import { useEffect, useRef } from 'react';
-import { useThemeStore } from '@/stores/theme-store';
+import { useEffect, useRef } from "react";
+import { useThemeStore } from "@/stores/theme-store";
 
-const MATRIX_CHARS = 'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-
-interface Drop {
-  x: number;
-  y: number;
-  speed: number;
-  chars: string[];
-  length: number;
-}
+const CHARS =
+  "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ABCDEF";
+const FONT_SIZE = 14;
+const FADE_ALPHA = 0.05;
 
 export function MatrixRain() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const activeTheme = useThemeStore((s) => s.activeTheme);
   const rainOpacity = useThemeStore((s) => s.matrixRainOpacity);
   const reduceMotion = useThemeStore((s) => s.reduceMotion);
-  const animationRef = useRef<number | undefined>(undefined);
-  const dropsRef = useRef<Drop[]>([]);
-  const isMatrix = activeTheme === 'matrix';
+  const isMatrix = activeTheme === "matrix";
 
   useEffect(() => {
     if (!isMatrix || reduceMotion) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    let logicalWidth = window.innerWidth;
-    let logicalHeight = window.innerHeight;
+    let animId: number;
+    let columns: number[] = [];
 
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
-      logicalWidth = window.innerWidth;
-      logicalHeight = window.innerHeight;
-      canvas.width = logicalWidth * dpr;
-      canvas.height = logicalHeight * dpr;
-      canvas.style.width = `${logicalWidth}px`;
-      canvas.style.height = `${logicalHeight}px`;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
       ctx.scale(dpr, dpr);
-      initDrops();
-    };
 
-    const initDrops = () => {
-      const columns = Math.floor(logicalWidth / 20);
-      dropsRef.current = [];
-      for (let i = 0; i < columns; i++) {
-        dropsRef.current.push(createDrop(i * 20));
+      const colCount = Math.floor(rect.width / FONT_SIZE);
+      // Preserve existing drop positions, fill new columns randomly
+      const newColumns = new Array(colCount);
+      for (let i = 0; i < colCount; i++) {
+        newColumns[i] = columns[i] ?? Math.random() * -100;
       }
-    };
-
-    const createDrop = (x: number): Drop => {
-      const length = Math.floor(Math.random() * 15) + 5;
-      const chars: string[] = [];
-      for (let i = 0; i < length; i++) {
-        chars.push(MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)]);
-      }
-      return {
-        x,
-        y: Math.random() * -500,
-        speed: Math.random() * 2 + 1,
-        chars,
-        length,
-      };
-    };
-
-    const animate = () => {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-      ctx.fillRect(0, 0, logicalWidth, logicalHeight);
-      ctx.font = '15px monospace';
-
-      dropsRef.current.forEach((drop, index) => {
-        drop.chars.forEach((char, charIndex) => {
-          const y = drop.y - charIndex * 20;
-
-          if (y > 0 && y < logicalHeight) {
-            if (charIndex === 0) {
-              ctx.fillStyle = '#FFFFFF';
-            } else if (charIndex < 3) {
-              ctx.fillStyle = '#00FF41';
-            } else {
-              const alpha = Math.max(0.1, 1 - (charIndex / drop.length));
-              ctx.fillStyle = `rgba(0, 255, 65, ${alpha})`;
-            }
-            ctx.fillText(char, drop.x, y);
-          }
-
-          if (Math.random() < 0.02) {
-            drop.chars[charIndex] = MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)];
-          }
-        });
-
-        drop.y += drop.speed;
-
-        if (drop.y - drop.length * 20 > logicalHeight) {
-          dropsRef.current[index] = createDrop(drop.x);
-        }
-      });
-
-      animationRef.current = requestAnimationFrame(animate);
+      columns = newColumns as number[];
     };
 
     resize();
-    window.addEventListener('resize', resize);
-    animate();
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas);
+
+    const draw = () => {
+      const rect = canvas.getBoundingClientRect();
+
+      // Fade effect
+      ctx.fillStyle = `rgba(0, 0, 0, ${FADE_ALPHA})`;
+      ctx.fillRect(0, 0, rect.width, rect.height);
+
+      ctx.font = `${FONT_SIZE}px monospace`;
+
+      for (let i = 0; i < columns.length; i++) {
+        const char = CHARS.charAt(Math.floor(Math.random() * CHARS.length));
+        const x = i * FONT_SIZE;
+        const column = columns[i] ?? 0;
+        const y = column * FONT_SIZE;
+
+        // Head character is bright white-green
+        if (y > 0) {
+          ctx.fillStyle = "#aaffaa";
+          ctx.fillText(char, x, y);
+
+          // Trail character slightly behind is full green
+          if (y - FONT_SIZE > 0) {
+            const trailChar = CHARS.charAt(Math.floor(Math.random() * CHARS.length));
+            ctx.fillStyle = "#33ff33";
+            ctx.fillText(trailChar, x, y - FONT_SIZE);
+          }
+        }
+
+        columns[i] = column + 1;
+
+        // Reset when off screen, with random delay
+        if (y > rect.height && Math.random() > 0.975) {
+          columns[i] = Math.random() * -20;
+        }
+      }
+
+      animId = requestAnimationFrame(draw);
+    };
+
+    animId = requestAnimationFrame(draw);
 
     return () => {
-      window.removeEventListener('resize', resize);
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
+      cancelAnimationFrame(animId);
+      observer.disconnect();
     };
   }, [isMatrix, reduceMotion]);
 
@@ -127,8 +96,8 @@ export function MatrixRain() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none"
-      style={{ opacity: (rainOpacity ?? 40) / 100, zIndex: 1 }}
+      className="absolute inset-0 w-full h-full pointer-events-none"
+      style={{ zIndex: 0, opacity: (rainOpacity ?? 40) / 100 }}
     />
   );
 }
