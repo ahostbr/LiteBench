@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { Play } from 'lucide-react';
+import { Play, TerminalSquare } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
+import { SkillsDropdown } from './SkillsDropdown';
 
 /**
  * TerminalPanel — xterm.js + node-pty powered terminal.
@@ -213,6 +214,17 @@ export function TerminalPanel() {
 
   return (
     <div className="h-full w-full flex flex-col" style={{ backgroundColor: '#0a0a0b' }}>
+      {/* Terminal header with skills dropdown */}
+      <div
+        className="flex items-center gap-2 px-3 py-1.5 shrink-0 border-b"
+        style={{ borderColor: 'rgba(255,255,255,0.06)' }}
+      >
+        <TerminalSquare className="w-3.5 h-3.5" style={{ color: 'var(--text-muted, #7a756d)' }} />
+        <span className="text-[10px] font-medium flex-1" style={{ color: 'var(--text-muted, #7a756d)' }}>
+          Terminal
+        </span>
+        <SkillsDropdown ptyId={ptyId} />
+      </div>
       <div
         ref={containerRef}
         className="flex-1 min-h-0"
