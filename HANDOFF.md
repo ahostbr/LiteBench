@@ -1,95 +1,108 @@
-# LiteBench Agent Handoff — Phase 5: Agent TUI with Tool-Use Loop
+# LiteBench Agent Handoff — Harness Training + Polish
 
 ## Context
 
-LiteBench is a standalone Electron + Python LLM benchmark studio at `C:/Projects/LiteBench`. The goal is to make it public and DM Matt Wolfe (600K YouTube subs) who explicitly asked for "an everyday user benchmark for local models."
+LiteBench is a standalone Electron + React LLM benchmark studio at `C:/Projects/LiteBench`. Phase 5 is complete — agent chat, browser panel, 11 tools, agent benchmarks. The goal is to demo this to Matt Wolfe (600K YouTube subs) who asked for "an everyday user benchmark for local models."
 
-Phases 1-4 are complete:
-- **MCP server** (`mcp-server/`) with 4 tools: bench, web_search, web_fetch, youtube — all tested
-- **Creator Suite** — 15 real-world tests seeded in both Python backend and Electron app
-- **Winner Card** — bold scoreboard with PNG export in ComparisonView.tsx
-- **Repo prep** — README, LICENSE, cleaned hardcoded paths
+Everything works end-to-end: Devstral navigates Hacker News in the embedded browser, reads page content, calls web search, executes code in sandbox. Verified via Playwright E2E tests.
 
-## What You're Building: Phase 5
+## What You're Picking Up
 
-### The Problem
-LiteBench currently sends text prompts and scores text responses. That's a synthetic benchmark. Matt Wolfe wants to test what models can ACTUALLY DO — use tools, research the web, process real content.
+### 1. Harness Training — Improve Tool Reliability
 
-### The Solution
-Add an **Agent Benchmark Mode** where the model gets access to MCP tools and must complete real end-to-end tasks. Port the tool-use streaming loop from Kuroryuu V2.
+The agent harness (`src/main/engine/agent-harness.ts`) generates model-specific system prompts. Current NinjaJSON discipline: "ONE tool per step, STOP and wait."
 
-### Source Code to Port
+**Baseline scores** (from `ai/data/trainer/harness_evolution.jsonl`):
+- Devstral Small 2 (24B): 100% — all tools fire, responses include data
+- Qwen 3 4B: 67% — browser + search work, sandbox fails
+- Gemma 4 31B: untested with latest cap (was generating 600+ tool calls, now capped at 3)
 
-**Kuroryuu V2** at `E:/SAS/CLONE/Kuroryuu-master/apps/kuroryuu_cli_v2/`:
+**What to tune**:
+- Run `npx tsx e2e/train-harness.ts` to evaluate
+- Mutate `buildNativeSystemPrompt()` in `agent-harness.ts`
+- Re-evaluate, keep/revert based on score
+- Use `/train --target litebench-agent` for the autonomous loop
 
-| File | What it does | Port to |
-|------|-------------|---------|
-| `src/providers/types.ts` | ToolSchema, AgentEvent, Message types with tool_call support | `src/main/engine/types.ts` |
-| `src/providers/cliproxy.ts` | OpenAI-compatible streaming with tool calls — the core loop: stream → detect tool_call → execute → feed result back → continue | `src/main/engine/agent-runner.ts` |
-| `src/services/harness.ts` | SQLite session/tool tracking (better-sqlite3) | Adapt into existing `src/main/db.ts` |
+### 2. Fix Gemma 3 4B (XML Fallback)
 
-Also check:
-- `E:/SAS/CLONE/Kuroryuu-master/apps/kuroryuu_cli_v2/src/providers/__tests__/` — may have test patterns
-- `E:/SAS/CLONE/Kuroryuu-master/apps/desktop/src/renderer/components/marketing/` — ResearchPage, ScraperPage show the UI for tool-use flows
+Gemma 3 4B writes `<tool_call>` XML as text instead of using the native API. It's currently listed in `NATIVE_TOOL_MODEL_PATTERNS` as `gemma-4` — but `gemma-3` doesn't support native tool calling. Fix: remove `gemma-3` pattern or add a specific exclusion. The XML fallback (`buildXMLSystemPrompt`) + `parseXMLToolCalls` already exist but aren't being triggered for Gemma 3.
 
-### Architecture
+### 3. Recommended Models Feature
 
-```
-Current (Score Mode):
-  prompt → model.chat.completions.create() → response → score(keywords)
+Add a curated list of recommended models to the UI. Models that work well with LiteBench's agent tools:
+- **Devstral Small 2** (24B) — best agent performance, 100% tool reliability
+- **Qwen 3 4B** (4B) — decent for basic tasks on limited hardware
+- **Llama 3.1 8B** (8B) — good balance (not yet tested)
+- **Devstral 3B** (3B) — smallest Mistral with tool support (not yet tested)
 
-New (Agent Mode):  
-  task + tools[] → model.streamCompletion(messages, tools) 
-    → tool_call event → execute MCP tool → feed result back
-    → model continues → ... loop until done
-    → score(final_output)
-```
+Show in Settings panel or as a banner. Include LM Studio search links.
 
-The MCP tools (`web_search`, `web_fetch`, `youtube`) become `ToolSchema[]` that the model can call during agent tasks.
+### 4. Make Repo Public + DM Matt Wolfe
 
-### Agent Task Examples (real-world tests)
+GitHub repo: `ahostbr/LiteBench` (currently private)
+- `gh repo edit ahostbr/LiteBench --visibility public`
+- DM Matt Wolfe on Twitter/X with link + demo video
 
-Instead of "write a YouTube hook" (text-only), an agent task is:
-```
-Task: "Research what's trending in AI this week and write a 5-tweet thread."
-Tools available: web_search, web_fetch
-Expected: Model searches, reads articles, synthesizes, writes thread
-Score: keyword hits in final output + quality of synthesis
-```
+## Key Architecture
 
 ```
-Task: "Get the transcript of [YouTube URL], extract the 3 key takeaways."  
-Tools available: youtube
-Expected: Model fetches transcript, analyzes, extracts
-Score: Accuracy of takeaways vs actual content
+Renderer (React)                     Main Process (Node)
+┌──────────────────────┐            ┌──────────────────────────┐
+│  AgentPanel           │──IPC────→ │ agent-handlers.ts        │
+│  BrowserPanel         │           │   ↓                      │
+│  AgentBenchmarkPanel  │           │ agent-runner.ts           │
+│                       │←─events── │   ↓ OpenAI streaming     │
+│  Stores (Zustand)     │           │ agent-harness.ts (prompt) │
+│  - agent-chat-store   │           │   ↓ tool_call detected   │
+│  - agent-benchmark    │           │ tool-registry.ts          │
+│  - workspace-store    │           │   ↓ dispatch              │
+└──────────────────────┘           │ tool-executor.ts (Python) │
+                                    │ browser-manager.ts (IPC)  │
+                                    └──────────────────────────┘
 ```
 
-### Implementation Steps
+### IPC Channel Pattern
+- Agent chat: `bench:agent:send` → returns `{ conversationId }` → events on `bench:agent:stream:{conversationId}`
+- The `conversationId` is a `crypto.randomUUID()` from the main process, NOT the Zustand conversation ID
+- AgentPanel subscribes AFTER send, using the server-returned ID
 
-1. **Port types** — `ToolSchema`, `AgentEvent`, `Message` with tool_call fields
-2. **Port agent runner** — streaming tool-use loop from `cliproxy.ts`, adapted to use LiteBench's existing endpoint system
-3. **Wire MCP tools as ToolSchemas** — web_search, web_fetch, youtube become callable tools
-4. **Add agent test cases** — new category in Creator Suite or separate "Agent Suite"  
-5. **Add agent runner to benchmark flow** — detect `media_type === 'agent'` or new flag, route to agent runner instead of simple call_model
-6. **Track tool calls in results** — extend test_results table with tool_call_count, tools_used columns
-7. **Optional: TUI** — lightweight terminal UI based on Kuroryuu V2's Ink-based CLI for running agent benchmarks headless
+### Tool Execution Paths
+- **Python tools** (web_search, web_fetch, youtube, sandbox, pccontrol): `tool-executor.ts` → `python -c "..." < stdin`
+- **Browser tools** (navigate, read_page, click, type, screenshot): direct calls to `browser-manager.ts` functions
+- **Single browser session**: agent uses the visible Browser panel's session, no invisible sessions
 
-### Key Files in LiteBench
+### NinjaJSON System Prompt Pattern
+- `supportsNativeToolCalling(modelId)` — checks against `NATIVE_TOOL_MODEL_PATTERNS`
+- Native models: minimal prompt (~200 tokens) + tools via API
+- XML models: verbose prompt (~2000 tokens) with `<tool_call>` format embedded
+- Tool discipline: "ONE tool per step, STOP, read result, decide next"
+- `MAX_TOOL_CALLS_PER_TURN = 3` — hard cap per model turn
+- `MAX_TOOL_ITERATIONS = 5` — max loop iterations
+
+## Critical Files
 
 | File | Role |
 |------|------|
-| `src/main/engine/runner.ts` | Current benchmark runner (text-only) — add agent mode here |
-| `src/main/engine/scorer.ts` | Scoring logic — works as-is for agent output |
-| `src/main/db.ts` | SQLite schema — may need tool_call tracking columns |
-| `src/main/ipc/benchmarks-handlers.ts` | IPC handlers — route agent runs |
-| `mcp-server/tools/*.py` | The Python MCP tools — need TypeScript wrappers or direct HTTP calls |
-| `backend/engine/runner.py` | Python runner — also needs agent mode for MCP-proxied runs |
+| `src/main/engine/agent-harness.ts` | System prompt builder (THE FILE TO TUNE) |
+| `src/main/engine/agent-runner.ts` | Streaming tool-use loop |
+| `src/main/engine/tool-registry.ts` | Tool registration + dispatch |
+| `src/main/engine/tool-executor.ts` | Python subprocess executor (stdin) |
+| `src/main/browser-manager.ts` | WebContentsView session management |
+| `src/main/ipc/agent-handlers.ts` | Agent chat IPC handlers |
+| `src/renderer/components/agent/AgentPanel.tsx` | Chat UI |
+| `src/renderer/components/browser/BrowserPanel.tsx` | Browser UI |
+| `src/renderer/stores/agent-chat-store.ts` | Chat state (Zustand + persist) |
+| `mcp-server/tools/*.py` | Python tool implementations |
+| `.claude/agents/litebench-agent.md` | Agent config for /train |
+| `e2e/train-harness.ts` | Training evaluation script |
+| `e2e/multi-model-baseline.ts` | Multi-model comparison |
 
-### Don't Forget
+## Don't Forget
 
-- Every Lite app has a **browser panel** — LiteBench should too eventually (LiteEditor's browser can be ported)
-- Kuroryuu's **marketing panels** (ResearchPage, ScraperPage, etc.) show the UI pattern for tool-use surfaces
-- The `/train` skill concept applies: run model A through agent tasks → run model B → compare → crown winner
-- LiteBench uses **pnpm** (not Bun)
-- The Python backend runs on port **8001**, MCP server is stdio
-- Gemma 4 thinking model needs `--reasoning-format none` or 5x token budget
+- Use **pnpm** (not Bun)
+- Use `python` not `python3` (Windows)
+- DuckDuckGo search uses `ddgs` package (renamed from `duckduckgo-search`)
+- `browser_navigate` uses the VISIBLE browser panel session — no invisible sessions
+- Gemma 4 31B generates 600+ tool calls without the cap — ALWAYS keep MAX_TOOL_CALLS_PER_TURN
+- The polymathic review (Einstein/Newton/Da Vinci/Socrates) findings are in memory — key fix was IPC channel mismatch
+- LiteBench was absorbed into LiteSuite — this standalone is the Matt Wolfe demo vehicle
