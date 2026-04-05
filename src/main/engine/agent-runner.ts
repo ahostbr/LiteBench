@@ -50,6 +50,7 @@ interface PendingToolCall {
 }
 
 const MAX_TOOL_ITERATIONS = 5;
+const MAX_TOOL_CALLS_PER_TURN = 10; // Cap tool calls per model turn — prevents runaway models (e.g. Gemma 4 spamming 600+)
 
 export async function streamAgentChat(
   endpoint: Endpoint,
@@ -136,9 +137,15 @@ export async function streamAgentChat(
         }
 
         // Accumulate tool call fragments (same pattern as cliproxy.ts)
+        // Cap at MAX_TOOL_CALLS_PER_TURN to prevent runaway models (Gemma 4 generates 600+)
         if (delta?.tool_calls) {
           for (const tc of delta.tool_calls) {
             const idx = tc.index ?? 0;
+
+            // Stop accumulating if we've hit the cap
+            if (idx >= MAX_TOOL_CALLS_PER_TURN && !pendingToolCalls.has(idx)) {
+              continue;
+            }
 
             if (!pendingToolCalls.has(idx)) {
               pendingToolCalls.set(idx, {
