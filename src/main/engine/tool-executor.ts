@@ -1,18 +1,52 @@
 import { spawn, execSync } from 'child_process';
+import { existsSync } from 'fs';
 import { app } from 'electron';
 import path from 'path';
 import { toolRegistry } from './tool-registry';
 
-/** Resolve the full path to python so spawn works without shell in Electron */
+/**
+ * Resolve Python executable path. Tries multiple strategies:
+ * 1. Check common Windows install locations
+ * 2. `where python` via shell
+ * 3. Bare `python` fallback
+ */
 let _pythonPath: string | null = null;
 function getPythonPath(): string {
   if (_pythonPath) return _pythonPath;
-  try {
-    _pythonPath = execSync('where python', { encoding: 'utf8', shell: true })
-      .split('\n')[0].trim();
-  } catch {
-    _pythonPath = 'python'; // fallback
+
+  // Strategy 1: Check known Windows install paths
+  const home = process.env.USERPROFILE || process.env.HOME || '';
+  const candidates = [
+    path.join(home, 'AppData/Local/Programs/Python/Python313/python.exe'),
+    path.join(home, 'AppData/Local/Programs/Python/Python312/python.exe'),
+    path.join(home, 'AppData/Local/Programs/Python/Python311/python.exe'),
+    path.join(home, 'AppData/Local/Programs/Python/Python310/python.exe'),
+    'C:/Python313/python.exe',
+    'C:/Python312/python.exe',
+    'C:/Python311/python.exe',
+  ];
+  for (const p of candidates) {
+    if (existsSync(p)) {
+      _pythonPath = p;
+      return p;
+    }
   }
+
+  // Strategy 2: Ask the shell
+  try {
+    const result = execSync('where python', {
+      encoding: 'utf8',
+      shell: true,
+      env: { ...process.env, PATH: process.env.PATH },
+    }).split('\n')[0].trim();
+    if (result && existsSync(result)) {
+      _pythonPath = result;
+      return result;
+    }
+  } catch { /* ignore */ }
+
+  // Strategy 3: bare name (last resort)
+  _pythonPath = 'python';
   return _pythonPath;
 }
 
@@ -44,10 +78,14 @@ async function runPython(
   signal: AbortSignal,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(getPythonPath(), ['-c', script], {
-      cwd,
-      env: process.env,
-    });
+    const pythonPath = getPythonPath();
+    const env = {
+      ...process.env,
+      // Ensure Windows system vars are present (Electron may strip them)
+      SystemRoot: process.env.SystemRoot || 'C:\\WINDOWS',
+      COMSPEC: process.env.COMSPEC || 'C:\\WINDOWS\\system32\\cmd.exe',
+    };
+    const proc = spawn(pythonPath, ['-c', script], { cwd, env });
 
     const onAbort = () => {
       proc.kill();

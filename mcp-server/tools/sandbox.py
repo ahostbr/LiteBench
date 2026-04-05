@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -18,8 +19,8 @@ from pathlib import Path
 # ── Language config ──────────────────────────────────────────────────────────
 
 _LANGUAGES = {
-    "python": {"cmd": ["python", "-u"], "ext": ".py"},
-    "py":     {"cmd": ["python", "-u"], "ext": ".py"},
+    "python": {"cmd": [sys.executable, "-u"], "ext": ".py"},
+    "py":     {"cmd": [sys.executable, "-u"], "ext": ".py"},
     "javascript": {"cmd": ["node"], "ext": ".js"},
     "js":         {"cmd": ["node"], "ext": ".js"},
     "typescript": {"cmd": ["npx", "tsx"], "ext": ".ts"},
