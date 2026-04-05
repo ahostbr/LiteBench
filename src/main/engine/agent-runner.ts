@@ -72,7 +72,9 @@ export async function streamAgentChat(
   setBrowserContextKey(browserKey);
 
   // Build model-specific system prompt with tool instructions
-  const toolSchemas = enableTools ? toolRegistry.getSchemas() : [];
+  // Polymathic consensus: small models get tier-1 tools only (browser_go, not navigate+read)
+  const small = isSmallModel(modelId);
+  const toolSchemas = enableTools ? toolRegistry.getSchemas(small) : [];
   const isNativeToolModel = supportsNativeToolCalling(modelId);
   const systemPrompt = buildSystemPrompt(
     modelId,
@@ -106,7 +108,7 @@ export async function streamAgentChat(
         messages: conversation,
         tools: useNativeTools ? toolSchemas : undefined,
         tool_choice: useNativeTools ? 'auto' : undefined,
-        temperature: isSmallModel(modelId) ? 0.3 : undefined,
+        temperature: small ? 0.3 : undefined,
         stream: true,
       });
     } catch (error) {

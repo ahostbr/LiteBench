@@ -17,10 +17,13 @@ function getPythonPath(): string {
   // Strategy 1: Check known Windows install paths
   const home = process.env.USERPROFILE || process.env.HOME || '';
   const candidates = [
+    path.join(home, 'AppData/Local/Programs/Python/Python315/python.exe'),
+    path.join(home, 'AppData/Local/Programs/Python/Python314/python.exe'),
     path.join(home, 'AppData/Local/Programs/Python/Python313/python.exe'),
     path.join(home, 'AppData/Local/Programs/Python/Python312/python.exe'),
     path.join(home, 'AppData/Local/Programs/Python/Python311/python.exe'),
     path.join(home, 'AppData/Local/Programs/Python/Python310/python.exe'),
+    'C:/Python315/python.exe',
     'C:/Python313/python.exe',
     'C:/Python312/python.exe',
     'C:/Python311/python.exe',
@@ -52,10 +55,28 @@ function getPythonPath(): string {
 
 function getMcpServerPath(): string {
   const appPath = app.getAppPath();
+
+  // In ASAR-packaged builds, mcp-server is outside the archive
   if (appPath.includes('.asar')) {
     return path.join(path.dirname(appPath), 'mcp-server');
   }
-  return path.join(appPath, 'mcp-server');
+
+  // Dev/built output: try app path first, then project root
+  const fromApp = path.join(appPath, 'mcp-server');
+  if (existsSync(fromApp)) return fromApp;
+
+  // Fallback: walk up from appPath to find mcp-server (handles out/main/ build paths)
+  let dir = appPath;
+  for (let i = 0; i < 5; i++) {
+    const candidate = path.join(dir, 'mcp-server');
+    if (existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  // Last resort: relative to cwd
+  return path.join(process.cwd(), 'mcp-server');
 }
 
 /**
@@ -115,7 +136,7 @@ async function runPython(
 
     proc.on('error', (err) => {
       signal.removeEventListener('abort', onAbort);
-      reject(err);
+      reject(new Error(`${err.message} (python=${pythonPath}, cwd=${cwd})`));
     });
 
     // Write args JSON to stdin — this is where user data flows, safely isolated
@@ -147,6 +168,9 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
 
   // Python subprocess path
   const cwd = getMcpServerPath();
+  if (!existsSync(cwd)) {
+    return `Tool error (${name}): mcp-server directory not found at ${cwd}`;
+  }
   const script = buildPythonScript(tool.handler, tool.module);
   const stdinData = JSON.stringify(args);
 

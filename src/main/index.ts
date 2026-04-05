@@ -8,6 +8,7 @@ import { registerBrowserHandlers } from './ipc/browser-handlers';
 import { registerEndpointsHandlers } from './ipc/endpoints-handlers';
 import { registerSuitesHandlers } from './ipc/suites-handlers';
 import { registerPtyHandlers, destroyAllPtySessions } from './ipc/pty-handlers';
+import { registerTestToolsHandlers } from './ipc/test-tools-handlers';
 import {
   bindWindowStateEvents,
   registerWindowHandlers,
@@ -177,6 +178,7 @@ app.whenReady().then(() => {
   registerAgentHandlers();
   registerPtyHandlers();
   registerBrowserHandlers();
+  registerTestToolsHandlers();
 
   createMainWindow();
 

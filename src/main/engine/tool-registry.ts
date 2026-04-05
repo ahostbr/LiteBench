@@ -30,6 +30,13 @@ export interface ToolRegistration {
   executor?: (args: Record<string, unknown>) => Promise<string>;
   /** Human-readable category for UI grouping */
   category: 'search' | 'code' | 'desktop' | 'browser' | 'media';
+  /**
+   * Tool tier for model-size filtering (polymathic consensus).
+   * - 'core': Available to ALL models including sub-2B. These are the essential tools.
+   * - 'advanced': Only available to larger models. Small models get a simpler toolset.
+   * Defaults to 'core' if unset.
+   */
+  tier?: 'core' | 'advanced';
 }
 
 /**
@@ -48,9 +55,16 @@ class ToolRegistry {
     this.tools.set(name, reg);
   }
 
-  /** All schemas as an array — passed directly to OpenAI chat.completions.create. */
-  getSchemas(): OpenAI.Chat.ChatCompletionTool[] {
-    return Array.from(this.tools.values()).map((r) => r.schema);
+  /**
+   * All schemas as an array — passed directly to OpenAI chat.completions.create.
+   * When smallModel is true, filters to 'core' tier tools only (polymathic consensus).
+   * Small models (sub-2B) get: browser_go, browser_elements, browser_click, browser_type,
+   * web_search, web_fetch, sandbox, youtube. No advanced browser tools.
+   */
+  getSchemas(smallModel?: boolean): OpenAI.Chat.ChatCompletionTool[] {
+    return Array.from(this.tools.values())
+      .filter((r) => !smallModel || (r.tier ?? 'core') === 'core')
+      .map((r) => r.schema);
   }
 
   /** Executor mapping for a single tool name — used by tool-executor.ts */
@@ -282,10 +296,162 @@ function requireBrowserSession(): string {
   return id;
 }
 
+// ── Page data type for browser tools ──────────────────────────────────────────
+
+interface PageData {
+  url: string;
+  title: string;
+  elements: Array<{
+    index: number;
+    tag: string;
+    text?: string;
+    href?: string;
+    type?: string;
+    placeholder?: string;
+    role?: string;
+    value?: string;
+    ariaLabel?: string;
+  }>;
+  visibleText: string;
+}
+
+/**
+ * Format page content as plain text (polymathic consensus: Einstein + Feynman).
+ * No markdown headers, no arrows, no brackets on content — telegram style.
+ * Strips nav/footer boilerplate, caps at maxChars of main content.
+ * Appends a one-line action hint (~15 tokens) so the model knows what's available.
+ */
+function formatPlainTextPage(raw: PageData, maxChars: number = 1500): string {
+  const lines: string[] = [];
+  lines.push(`Title: ${raw.title}`);
+  lines.push(`URL: ${raw.url}`);
+  lines.push('');
+
+  // Main content — strip leading/trailing whitespace, cap length
+  const text = raw.visibleText?.substring(0, maxChars).trim() || '(empty page)';
+  lines.push(text);
+
+  // Action hint (Feynman: ~15 tokens, replaces protocol memory requirement)
+  const elCount = raw.elements?.length ?? 0;
+  if (elCount > 0) {
+    const hasForm = raw.elements.some(
+      (e) => e.tag === 'input' || e.tag === 'textarea' || e.tag === 'select',
+    );
+    if (hasForm) {
+      lines.push('', `[Page has ${elCount} interactive elements including form inputs. Call browser_elements() to see them.]`);
+    } else {
+      lines.push('', `[Page has ${elCount} interactive elements. Call browser_elements() to interact.]`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Format interactive elements as plain text list (polymathic consensus).
+ * Top N elements only (Feynman: cap at 5-10 for near-perfect selection accuracy).
+ * Uses ARIA landmark hints (Einstein: nav/main/aside/footer hierarchy).
+ */
+function formatElementsList(
+  elements: PageData['elements'],
+  maxElements: number = 10,
+): string {
+  if (!elements || elements.length === 0) {
+    return 'No interactive elements found on this page.';
+  }
+
+  const top = elements.slice(0, maxElements);
+  const lines: string[] = [];
+
+  for (const el of top) {
+    const label = el.text || el.ariaLabel || el.placeholder || el.value || '';
+    const short = label.substring(0, 60).replace(/\n/g, ' ').trim();
+
+    if (el.tag === 'a' && el.href) {
+      lines.push(`${el.index}: link "${short}" ${el.href}`);
+    } else if (el.tag === 'input') {
+      lines.push(`${el.index}: input(${el.type || 'text'}) ${short || el.placeholder || ''}`);
+    } else if (el.tag === 'button' || el.role === 'button') {
+      lines.push(`${el.index}: button "${short}"`);
+    } else if (el.tag === 'select') {
+      lines.push(`${el.index}: dropdown "${short}"`);
+    } else if (el.tag === 'textarea') {
+      lines.push(`${el.index}: textarea "${short}"`);
+    } else {
+      lines.push(`${el.index}: ${el.tag} "${short}"`);
+    }
+  }
+
+  if (elements.length > maxElements) {
+    lines.push(`(${elements.length - maxElements} more elements not shown)`);
+  }
+
+  return lines.join('\n');
+}
+
 // ── Browser tool registrations ────────────────────────────────────────────────
+
+// ── Tier 1: Core browser tools (available to ALL models including sub-2B) ─────
 
 toolRegistry.register({
   category: 'browser',
+  tier: 'core',
+  schema: {
+    type: 'function',
+    function: {
+      name: 'browser_go',
+      description:
+        'Navigate to a URL and read its content in one step. Returns the page title, URL, and text content. This is the primary tool for reading any website.',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: {
+            type: 'string',
+            description: 'Full URL to navigate to (https://...)',
+          },
+        },
+        required: ['url'],
+      },
+    },
+  },
+  executor: async (args) => {
+    const url = args.url as string;
+    const sessionId = requireBrowserSession();
+    await navigateTo(sessionId, url);
+    const raw = (await readPage(sessionId)) as PageData;
+    return formatPlainTextPage(raw);
+  },
+});
+
+toolRegistry.register({
+  category: 'browser',
+  tier: 'core',
+  schema: {
+    type: 'function',
+    function: {
+      name: 'browser_elements',
+      description:
+        'List the interactive elements on the current page (links, buttons, inputs). Use after browser_go to see what you can click or type into. Returns element indices for use with browser_click or browser_type.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  executor: async () => {
+    const sessionId = requireBrowserSession();
+    const raw = (await readPage(sessionId)) as PageData;
+    const list = formatElementsList(raw.elements);
+    return `Interactive elements on "${raw.title}":\n\n${list}\n\nUse browser_click(index) or browser_type(text, index) to interact.`;
+  },
+});
+
+// ── Tier 2: Advanced browser tools (large models only) ────────────────────────
+
+toolRegistry.register({
+  category: 'browser',
+  tier: 'advanced',
   schema: {
     type: 'function',
     function: {
@@ -314,6 +480,7 @@ toolRegistry.register({
 
 toolRegistry.register({
   category: 'browser',
+  tier: 'advanced',
   schema: {
     type: 'function',
     function: {
@@ -377,6 +544,7 @@ toolRegistry.register({
 
 toolRegistry.register({
   category: 'browser',
+  tier: 'core',
   schema: {
     type: 'function',
     function: {
@@ -404,6 +572,7 @@ toolRegistry.register({
 
 toolRegistry.register({
   category: 'browser',
+  tier: 'core',
   schema: {
     type: 'function',
     function: {
@@ -435,6 +604,7 @@ toolRegistry.register({
 
 toolRegistry.register({
   category: 'browser',
+  tier: 'advanced',
   schema: {
     type: 'function',
     function: {
@@ -457,6 +627,7 @@ toolRegistry.register({
 
 toolRegistry.register({
   category: 'browser',
+  tier: 'advanced',
   schema: {
     type: 'function',
     function: {
@@ -478,12 +649,18 @@ toolRegistry.register({
   executor: async (args) => {
     const sessionId = requireBrowserSession();
     const result = await executeJS(sessionId, args.code as string);
-    return JSON.stringify(result);
+    const str = JSON.stringify(result);
+    // Cap output to prevent huge DOM dumps from hanging the agent
+    if (str.length > 5000) {
+      return str.substring(0, 5000) + `\n... (truncated from ${str.length} chars)`;
+    }
+    return str;
   },
 });
 
 toolRegistry.register({
   category: 'browser',
+  tier: 'advanced',
   schema: {
     type: 'function',
     function: {
@@ -519,6 +696,7 @@ toolRegistry.register({
 
 toolRegistry.register({
   category: 'browser',
+  tier: 'advanced',
   schema: {
     type: 'function',
     function: {

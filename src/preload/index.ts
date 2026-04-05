@@ -297,6 +297,18 @@ const api: LiteBenchApi = {
       return () => ipcRenderer.removeListener(`pty:exit:${id}`, handler);
     },
   },
+
+  // Test-only tools (dev/test mode) — exposes tool registry and harness for E2E
+  testTools: {
+    executeTool: (name: string, args: Record<string, unknown>) =>
+      ipcRenderer.invoke('test:tool:execute', name, args),
+    getSchemas: (smallModel?: boolean) =>
+      ipcRenderer.invoke('test:tool:schemas', smallModel),
+    buildPrompt: (modelId: string) =>
+      ipcRenderer.invoke('test:harness:prompt', modelId),
+    isSmallModel: (modelId: string) =>
+      ipcRenderer.invoke('test:harness:is-small', modelId),
+  },
 };
 
 contextBridge.exposeInMainWorld('liteBench', api);

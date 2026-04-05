@@ -36,12 +36,12 @@ interface TestCase {
 
 const TEST_CASES: TestCase[] = [
   {
-    prompt: 'Navigate the browser to https://example.com and read the page content.',
-    expectedTools: ['browser_navigate', 'browser_read_page'],
+    prompt: 'Go to https://example.com and tell me what the page says.',
+    expectedTools: ['browser_go'],
     assertions: [
-      'agent called browser_navigate',
-      'agent called browser_read_page',
+      'agent called browser_go',
       'response mentions "Example Domain"',
+      'response does NOT say "I cannot browse"',
     ],
   },
   {
@@ -55,10 +55,9 @@ const TEST_CASES: TestCase[] = [
   },
   {
     prompt: 'Open https://news.ycombinator.com in the browser and tell me the #1 story title.',
-    expectedTools: ['browser_navigate', 'browser_read_page'],
+    expectedTools: ['browser_go'],
     assertions: [
-      'agent called browser_navigate',
-      'agent called browser_read_page',
+      'agent called browser_go',
       'response length is at least 50 characters',
       'response does NOT say "I cannot browse"',
     ],

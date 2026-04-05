@@ -295,7 +295,8 @@ EXAMPLE:
             if not code:
                 return "Error: 'code' is required for execute."
             if not language:
-                return "Error: 'language' is required for execute."
+                # Auto-detect: default to python (most common, and models often forget)
+                language = "python"
             return _execute(code, language, timeout, cwd)
 
         if action == "execute_file":
