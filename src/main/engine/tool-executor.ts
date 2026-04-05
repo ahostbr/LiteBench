@@ -1,7 +1,20 @@
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { app } from 'electron';
 import path from 'path';
 import { toolRegistry } from './tool-registry';
+
+/** Resolve the full path to python so spawn works without shell in Electron */
+let _pythonPath: string | null = null;
+function getPythonPath(): string {
+  if (_pythonPath) return _pythonPath;
+  try {
+    _pythonPath = execSync('where python', { encoding: 'utf8', shell: true })
+      .split('\n')[0].trim();
+  } catch {
+    _pythonPath = 'python'; // fallback
+  }
+  return _pythonPath;
+}
 
 function getMcpServerPath(): string {
   const appPath = app.getAppPath();
@@ -31,10 +44,9 @@ async function runPython(
   signal: AbortSignal,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    const proc = spawn('python', ['-c', script], {
+    const proc = spawn(getPythonPath(), ['-c', script], {
       cwd,
       env: process.env,
-      shell: true, // Required on Windows — python not found without shell PATH resolution
     });
 
     const onAbort = () => {
