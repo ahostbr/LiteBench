@@ -273,54 +273,33 @@ test.describe.serial('Phase 1: Tool Executor Output Format', () => {
     await shot('08-browser-click-search-results')
   })
 
-  // ── Legacy tools still work for large models ──────────────────────────────
-
-  test('09 — browser_navigate still works (backward compat)', async () => {
-    const text = await executeTool('browser_navigate', { url: 'https://example.com' })
-
-    console.log(`  browser_navigate result: ${text}`)
-
-    // Old format: 'Page loaded: "title" at url'
-    expect(text).toContain('Page loaded:')
-    expect(text).toContain('Example Domain')
-
-    await shot('09-legacy-navigate')
-  })
-
-  test('10 — browser_read_page still works (backward compat)', async () => {
-    const text = await executeTool('browser_read_page')
-
-    console.log(`  browser_read_page result (first 500 chars):\n${text.substring(0, 500)}`)
-
-    // Old format uses markdown headers
-    expect(text).toMatch(/# /)
-    expect(text).toContain('Interactive Elements')
-
-    await shot('10-legacy-read-page')
-  })
+  // Legacy browser_navigate and browser_read_page REMOVED — replaced by browser_go.
+  // Tests 09/10 removed: these tools no longer exist in the registry.
 })
 
 // ─── PHASE 2: Tiered Tool Filtering ─────────────────────────────────────────
 
-test.describe.serial('Phase 2: Tool Tier Filtering', () => {
+test.describe.serial('Phase 2: Canonical Tool Set', () => {
 
-  test('11 — Small model gets core tools only', async () => {
-    const tools = await getToolNames(true)
-    console.log(`  Small model tools (${tools.length}): ${tools.join(', ')}`)
+  test('11 — All models get exactly 8 tools', async () => {
+    const tools = await getToolNames()
+    console.log(`  Tools (${tools.length}): ${tools.join(', ')}`)
 
-    // Must have core browser tools
+    expect(tools).toHaveLength(8)
+
+    // 4 browser tools
     expect(tools).toContain('browser_go')
     expect(tools).toContain('browser_elements')
     expect(tools).toContain('browser_click')
     expect(tools).toContain('browser_type')
 
-    // Must have non-browser core tools
+    // 4 non-browser tools
     expect(tools).toContain('web_search')
     expect(tools).toContain('web_fetch')
     expect(tools).toContain('sandbox')
     expect(tools).toContain('youtube')
 
-    // Must NOT have advanced browser tools
+    // Removed tools must NOT be present
     expect(tools).not.toContain('browser_navigate')
     expect(tools).not.toContain('browser_read_page')
     expect(tools).not.toContain('browser_screenshot')
@@ -328,42 +307,7 @@ test.describe.serial('Phase 2: Tool Tier Filtering', () => {
     expect(tools).not.toContain('browser_scroll')
     expect(tools).not.toContain('browser_console_logs')
 
-    await shot('11-small-model-tools')
-  })
-
-  test('12 — Large model gets ALL tools', async () => {
-    const tools = await getToolNames(false)
-    console.log(`  Large model tools (${tools.length}): ${tools.join(', ')}`)
-
-    // Must have everything
-    expect(tools).toContain('browser_go')
-    expect(tools).toContain('browser_elements')
-    expect(tools).toContain('browser_navigate')
-    expect(tools).toContain('browser_read_page')
-    expect(tools).toContain('browser_screenshot')
-    expect(tools).toContain('browser_execute_js')
-    expect(tools).toContain('browser_scroll')
-    expect(tools).toContain('browser_console_logs')
-    expect(tools).toContain('browser_click')
-    expect(tools).toContain('browser_type')
-    expect(tools).toContain('web_search')
-    expect(tools).toContain('web_fetch')
-    expect(tools).toContain('sandbox')
-    expect(tools).toContain('youtube')
-
-    await shot('12-large-model-tools')
-  })
-
-  test('13 — Default (no model) gets all tools', async () => {
-    const tools = await getToolNames()
-    console.log(`  Default tools (${tools.length}): ${tools.join(', ')}`)
-
-    // Default = all tools (backward compatible)
-    expect(tools).toContain('browser_navigate')
-    expect(tools).toContain('browser_go')
-    expect(tools.length).toBeGreaterThanOrEqual(14)
-
-    await shot('13-default-all-tools')
+    await shot('11-canonical-8-tools')
   })
 })
 
