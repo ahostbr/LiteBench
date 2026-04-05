@@ -220,10 +220,11 @@ export function TerminalPanel() {
         style={{ borderColor: 'rgba(255,255,255,0.06)' }}
       >
         <TerminalSquare className="w-3.5 h-3.5" style={{ color: 'var(--text-muted, #7a756d)' }} />
-        <span className="text-[10px] font-medium flex-1" style={{ color: 'var(--text-muted, #7a756d)' }}>
+        <span className="text-[10px] font-medium" style={{ color: 'var(--text-muted, #7a756d)' }}>
           Terminal
         </span>
         <SkillsDropdown ptyId={ptyId} />
+        <div className="flex-1" />
       </div>
       <div
         ref={containerRef}
