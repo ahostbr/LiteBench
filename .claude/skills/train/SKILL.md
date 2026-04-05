@@ -6,7 +6,7 @@ description: |
   "run training loop", "agent trainer", "evolve this agent", "train this agent", "self-improving
   agent", "auto-improve", "training loop", "agent evolution", "autotrainer", "improve skill",
   "evolve skill", "optimize skill", "skill training", "improve my skills".
-  Targets agents (.claude/agents/) OR skills (~/.claude/skills/) — auto-detects which.
+  Targets agents (.claude/agents/) OR skills (.claude/skills/) — auto-detects which.
   For agents: spawns A/B variants, evaluates output quality, mutates config.
   For skills: uses Claude Code's built-in eval system (run_eval.py) to measure trigger accuracy,
   then mutates the skill description. Use when you want an agent or skill to improve itself
@@ -40,7 +40,7 @@ mutates the skill description, keeps improvements. Can also generate evals if no
 
 The trainer auto-detects what you're pointing it at:
 
-1. Check `~/.claude/skills/{TARGET}/SKILL.md` — if exists → **skill mode**
+1. Check `.claude/skills/{TARGET}/SKILL.md` — if exists → **skill mode**
 2. Check `.claude/agents/{TARGET}.md` — if exists → **agent mode**
 3. If both exist, use `--mode` to disambiguate
 4. If neither exists, halt with error
@@ -55,8 +55,8 @@ The trainer auto-detects what you're pointing it at:
    - Determine MODE: `agent` or `skill`
    - Display: "Target: {TARGET} | Mode: {MODE}"
 
-3. **Read `LOOP.md`** from the same directory as this file:
-   - Path: `C:/Users/Ryan/.claude/skills/train/LOOP.md`
+3. **Read `LOOP.md`** from the same directory as this skill file:
+   - Path: `.claude/skills/train/LOOP.md` (relative to project root)
 
 4. **Follow `LOOP.md` instructions** using the parsed parameter values.
    - Pass all parameters into the loop as context, including MODE

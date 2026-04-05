@@ -15,7 +15,7 @@ The parameters passed into this session are:
 ## 0. Mode Detection
 
 If MODE was not explicitly set, determine it now:
-1. Check if `C:/Users/Ryan/.claude/skills/{TARGET}/SKILL.md` exists → **skill mode**
+1. Check if `.claude/skills/{TARGET}/SKILL.md` exists → **skill mode**
 2. Check if `.claude/agents/{TARGET}.md` exists → **agent mode**
 3. If both exist, default to **skill mode** (skills are the more common training target)
 4. If neither exists, halt: "Target '{TARGET}' not found as agent or skill."
@@ -530,24 +530,24 @@ Assertions:
 - "The root cause (fetchUsers returns undefined/Promise) is identified"
 ```
 
-**Codebase task examples (use Kuroryuu repo at E:/SAS/CLONE/Kuroryuu-master):**
+**Codebase task examples (use the current project's codebase):**
 ```
-Prompt: "Find the main entry point for the Kuroryuu gateway API and explain, in plain language,
-how an incoming HTTP request gets routed to its handler. Name the specific files involved."
+Prompt: "Find the agent runner entry point and explain how a user message flows through
+tool calling. Name the specific files involved."
 Assertions:
 - "A specific file path is mentioned"
-- "The word 'router' or 'route' appears"
+- "The word 'tool' or 'stream' appears"
 - "At least one concrete function or class name from the actual codebase is mentioned"
 - "The response does not begin with 'I cannot access' or similar refusal"
 ```
 
 ```
-Prompt: "In the Kuroryuu desktop app, identify the store initialization sequence. How many stores
-exist, and which ones are most likely to cause performance issues during cold start?"
+Prompt: "In this Electron app, identify the IPC handler registration sequence. How many
+handler modules exist, and which ones handle agent-related functionality?"
 Assertions:
-- "A number of stores is mentioned"
-- "At least one specific store name is mentioned"
-- "Cold start or initialization is addressed"
+- "A number of handler modules is mentioned"
+- "At least one specific handler file is mentioned"
+- "IPC or handler registration is addressed"
 - "The response does not hallucinate file paths"
 ```
 
@@ -587,14 +587,14 @@ but wrapped in the autoresearch autonomous loop.
 ### 8.1 Skill Setup
 
 **Step 1 — Read the skill.**
-Read `C:/Users/Ryan/.claude/skills/{TARGET}/SKILL.md`. Extract the current `description` field
+Read `.claude/skills/{TARGET}/SKILL.md`. Extract the current `description` field
 from the YAML frontmatter. This is what you're optimizing.
 
 **Step 2 — Save baseline.**
 Copy the full SKILL.md content to `ai/data/trainer/baselines/{TARGET}_skill_baseline.md`.
 
 **Step 3 — Locate or generate evals.**
-Check if `C:/Users/Ryan/.claude/skills/{TARGET}/evals/evals.json` exists.
+Check if `.claude/skills/{TARGET}/evals/evals.json` exists.
 
 If it exists: read it. Format is `[{query: string, should_trigger: boolean}]`.
 
@@ -603,22 +603,22 @@ If it does NOT exist:
 2. Generate 20 eval queries:
    - 10 with `should_trigger: true` — natural phrases a user would say when they want this skill
    - 10 with `should_trigger: false` — related but different requests that should NOT trigger it
-3. Write to `C:/Users/Ryan/.claude/skills/{TARGET}/evals/evals.json`
+3. Write to `.claude/skills/{TARGET}/evals/evals.json`
 4. Display: "Generated {N} eval queries for {TARGET}"
 
 **Step 4 — Run baseline eval.**
 Use the built-in eval system:
 ```bash
-python "C:/Users/Ryan/.claude/plugins/cache/claude-plugins-official/skill-creator/205b6e0b3036/skills/skill-creator/scripts/run_eval.py" \
+python "$(find ~/.claude/plugins/cache -name "run_eval.py" -path "*/skill-creator/*" 2>/dev/null | head -1)" \
   --skill-name "{TARGET}" \
-  --evals-file "C:/Users/Ryan/.claude/skills/{TARGET}/evals/evals.json" \
+  --evals-file ".claude/skills/{TARGET}/evals/evals.json" \
   --runs-per-query 3 \
   --max-workers 5
 ```
 
 If the script path doesn't exist (plugin cache may differ), find it:
 ```bash
-find "C:/Users/Ryan/.claude/plugins/cache" -name "run_eval.py" -path "*/skill-creator/*" 2>/dev/null
+find "~/.claude/plugins/cache" -name "run_eval.py" -path "*/skill-creator/*" 2>/dev/null
 ```
 
 Capture the output. Extract:
@@ -720,7 +720,7 @@ END LOOP
 ### 8.3 Multi-Skill Training
 
 When the user says `/train --target all --mode skill`:
-1. List all skills in `C:/Users/Ryan/.claude/skills/`
+1. List all skills in `.claude/skills/`
 2. For each skill that has evals (or generate them):
    - Run the eval to get baseline accuracy
    - Sort skills by accuracy (worst first)
