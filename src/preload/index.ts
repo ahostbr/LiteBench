@@ -17,6 +17,10 @@ try {
   }
 } catch {}
 import type {
+  AgentBenchmarkStreamEvent,
+  AgentChatMessage,
+  AgentSendRequest,
+  AgentStreamEvent,
   ApiMessageResponse,
   BenchmarkRun,
   BenchmarkRunRequest,
@@ -31,12 +35,20 @@ import type {
   ImportLegacyResponse,
   ModelInfo,
   SeedSuiteResponse,
+  SetupCheckResult,
   TestCase,
   TestCaseCreateInput,
   TestCaseUpdateInput,
   TestSuite,
   TestSuiteCreateInput,
 } from '../shared/types';
+
+export interface BrowserBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 export interface LiteBenchApi {
   endpoints: {
@@ -55,6 +67,8 @@ export interface LiteBenchApi {
     seedStress(): Promise<SeedSuiteResponse>;
     seedSpeed(): Promise<SeedSuiteResponse>;
     seedJudgment(): Promise<SeedSuiteResponse>;
+    seedCreator(): Promise<SeedSuiteResponse>;
+    seedAgent(): Promise<SeedSuiteResponse>;
     addCase(suiteId: number, input: TestCaseCreateInput): Promise<TestCase>;
     updateCase(
       suiteId: number,
@@ -92,6 +106,42 @@ export interface LiteBenchApi {
     setZoom(pct: number): Promise<void>;
     onZoomChange(callback: (pct: number) => void): () => void;
   };
+  agent: {
+    send(request: AgentSendRequest): Promise<{ conversationId: string }>;
+    cancel(conversationId: string): Promise<void>;
+    getHistory(conversationId: string): Promise<AgentChatMessage[]>;
+    checkSetup(): Promise<SetupCheckResult[]>;
+    installDep(name: string): Promise<boolean>;
+    onStreamEvent(
+      conversationId: string,
+      callback: (event: AgentStreamEvent) => void,
+    ): () => void;
+  };
+  agentBenchmark: {
+    run(input: { endpoint_id: number; suite_id: number; model_id: string; model_name: string }): Promise<BenchmarkRunStartResponse>;
+    cancel(runId: number): Promise<ApiMessageResponse>;
+    onEvent(callback: (event: AgentBenchmarkStreamEvent) => void): () => void;
+  };
+  browser: {
+    create(): Promise<string>;
+    destroy(sessionId: string): Promise<void>;
+    navigate(sessionId: string, url: string): Promise<void>;
+    back(sessionId: string): Promise<void>;
+    forward(sessionId: string): Promise<void>;
+    reload(sessionId: string): Promise<void>;
+    setBounds(sessionId: string, bounds: BrowserBounds): Promise<void>;
+    show(sessionId: string): Promise<void>;
+    hide(sessionId: string): Promise<void>;
+    executeJS(sessionId: string, code: string): Promise<unknown>;
+    screenshot(sessionId: string): Promise<string>;
+    readPage(sessionId: string): Promise<unknown>;
+    click(sessionId: string, index: number): Promise<unknown>;
+    type(sessionId: string, text: string, index?: number): Promise<unknown>;
+    scroll(sessionId: string, direction: 'up' | 'down' | 'left' | 'right', amount: number): Promise<unknown>;
+    select(sessionId: string, elementIndex: number, optionIndex: number): Promise<unknown>;
+    consoleLogs(sessionId: string): Promise<string[]>;
+    getUrl(sessionId: string): Promise<string>;
+  };
 }
 
 const api: LiteBenchApi = {
@@ -112,6 +162,8 @@ const api: LiteBenchApi = {
     seedStress: () => ipcRenderer.invoke('bench:suites:seed-stress'),
     seedSpeed: () => ipcRenderer.invoke('bench:suites:seed-speed'),
     seedJudgment: () => ipcRenderer.invoke('bench:suites:seed-judgment'),
+    seedCreator: () => ipcRenderer.invoke('bench:suites:seed-creator'),
+    seedAgent: () => ipcRenderer.invoke('bench:suites:seed-agent'),
     addCase: (suiteId, input) =>
       ipcRenderer.invoke('bench:suites:cases:create', suiteId, input),
     updateCase: (suiteId, caseId, input) =>
@@ -175,6 +227,56 @@ const api: LiteBenchApi = {
         ipcRenderer.removeListener('bench:window:zoom-change', handler);
       };
     },
+  },
+  agent: {
+    send: (request) => ipcRenderer.invoke('bench:agent:send', request),
+    cancel: (conversationId) =>
+      ipcRenderer.invoke('bench:agent:cancel', conversationId),
+    getHistory: (conversationId) =>
+      ipcRenderer.invoke('bench:agent:history', conversationId),
+    checkSetup: () => ipcRenderer.invoke('bench:agent:check-setup'),
+    installDep: (name) => ipcRenderer.invoke('bench:agent:install-dep', name),
+    onStreamEvent: (conversationId, callback) => {
+      const channel = `bench:agent:stream:${conversationId}`;
+      const handler = (_event: unknown, payload: AgentStreamEvent) =>
+        callback(payload);
+      ipcRenderer.on(channel, handler);
+      return () => {
+        ipcRenderer.removeListener(channel, handler);
+      };
+    },
+  },
+  agentBenchmark: {
+    run: (input) => ipcRenderer.invoke('bench:agent-bench:run', input),
+    cancel: (runId) => ipcRenderer.invoke('bench:agent-bench:cancel', runId),
+    onEvent: (callback) => {
+      const handler = (_event: unknown, payload: AgentBenchmarkStreamEvent) =>
+        callback(payload);
+      ipcRenderer.on('bench:agent-bench:event', handler);
+      return () => {
+        ipcRenderer.removeListener('bench:agent-bench:event', handler);
+      };
+    },
+  },
+  browser: {
+    create: () => ipcRenderer.invoke('bench:browser:create'),
+    destroy: (sessionId) => ipcRenderer.invoke('bench:browser:destroy', sessionId),
+    navigate: (sessionId, url) => ipcRenderer.invoke('bench:browser:navigate', sessionId, url),
+    back: (sessionId) => ipcRenderer.invoke('bench:browser:back', sessionId),
+    forward: (sessionId) => ipcRenderer.invoke('bench:browser:forward', sessionId),
+    reload: (sessionId) => ipcRenderer.invoke('bench:browser:reload', sessionId),
+    setBounds: (sessionId, bounds) => ipcRenderer.invoke('bench:browser:set-bounds', sessionId, bounds),
+    show: (sessionId) => ipcRenderer.invoke('bench:browser:show', sessionId),
+    hide: (sessionId) => ipcRenderer.invoke('bench:browser:hide', sessionId),
+    executeJS: (sessionId, code) => ipcRenderer.invoke('bench:browser:execute-js', sessionId, code),
+    screenshot: (sessionId) => ipcRenderer.invoke('bench:browser:screenshot', sessionId),
+    readPage: (sessionId) => ipcRenderer.invoke('bench:browser:read-page', sessionId),
+    click: (sessionId, index) => ipcRenderer.invoke('bench:browser:click', sessionId, index),
+    type: (sessionId, text, index) => ipcRenderer.invoke('bench:browser:type', sessionId, text, index),
+    scroll: (sessionId, direction, amount) => ipcRenderer.invoke('bench:browser:scroll', sessionId, direction, amount),
+    select: (sessionId, elementIndex, optionIndex) => ipcRenderer.invoke('bench:browser:select', sessionId, elementIndex, optionIndex),
+    consoleLogs: (sessionId) => ipcRenderer.invoke('bench:browser:console-logs', sessionId),
+    getUrl: (sessionId) => ipcRenderer.invoke('bench:browser:get-url', sessionId),
   },
 };
 

@@ -16,6 +16,7 @@ import {
   insertTestResult,
   listRuns,
 } from '../db';
+import { runAgentBenchmarkStream } from '../engine/agent-benchmark-runner';
 import { runBenchmarkStream } from '../engine/runner';
 import type {
   BenchmarkRunRequest,
@@ -57,8 +58,10 @@ async function executeRun(
     throw new Error('Test suite has no test cases');
   }
 
+  const runFn = request.is_agent_run ? runAgentBenchmarkStream : runBenchmarkStream;
+
   try {
-    const { summary, cancelled } = await runBenchmarkStream({
+    const { summary, cancelled } = await runFn({
       endpoint,
       run_id: runId,
       request,

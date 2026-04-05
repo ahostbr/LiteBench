@@ -133,6 +133,8 @@ async def stream_benchmark(run_id: int, db: aiosqlite.Connection = Depends(get_d
             "eval_json": bool(r["eval_json"]),
             "eval_sentence_count": r["eval_sentence_count"],
             "max_tokens": r["max_tokens"],
+            "media_type": r["media_type"] if "media_type" in r.keys() else None,
+            "media_path": r["media_path"] if "media_path" in r.keys() else None,
         })
 
     client = OpenAI(base_url=ep["base_url"], api_key=ep["api_key"], timeout=120.0)

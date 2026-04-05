@@ -64,7 +64,10 @@ export function TabLayout({
           <div
             key={panel.id}
             className="absolute inset-0"
-            style={{ visibility: panel.id === activePanelId ? 'visible' : 'hidden' }}
+            style={{
+              visibility: panel.id === activePanelId ? 'visible' : 'hidden',
+              pointerEvents: panel.id === activePanelId ? 'auto' : 'none',
+            }}
           >
             {renderContent(panel)}
           </div>

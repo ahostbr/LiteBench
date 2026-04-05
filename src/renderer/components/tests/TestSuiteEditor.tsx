@@ -9,7 +9,7 @@ import { useTestsStore } from '@/stores/tests';
 import type { TestCase } from '@/api/types';
 
 export function TestSuiteEditor() {
-  const { suites, loading, fetch, seedDefaults, createSuite, deleteSuite, addCase, updateCase, deleteCase } = useTestsStore();
+  const { suites, loading, fetch, seedDefaults, seedAgent, seedCreator, createSuite, deleteSuite, addCase, updateCase, deleteCase } = useTestsStore();
   const [expanded, setExpanded] = useState<number | null>(null);
   const [editingCase, setEditingCase] = useState<{ suiteId: number; tc: TestCase | null } | null>(null);
   const [newSuiteName, setNewSuiteName] = useState('');
@@ -44,6 +44,12 @@ export function TestSuiteEditor() {
         </Button>
         <Button variant="secondary" size="sm" onClick={seedDefaults}>
           <Beaker size={14} /> Seed Defaults
+        </Button>
+        <Button variant="secondary" size="sm" onClick={seedAgent}>
+          <Beaker size={14} /> Seed Agent Suite
+        </Button>
+        <Button variant="secondary" size="sm" onClick={seedCreator}>
+          <Beaker size={14} /> Seed Creator Suite
         </Button>
       </div>
 

@@ -50,7 +50,7 @@ export function EndpointPicker({ selected, onSelect }: EndpointPickerProps) {
           />
           <input
             className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            placeholder="Base URL (e.g. http://169.254.83.107:1234/v1)"
+            placeholder="Base URL (e.g. http://localhost:1234/v1)"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
           />

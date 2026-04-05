@@ -21,10 +21,13 @@
     "clsx": "^2.1.1",
     "echarts": "^5.6.0",
     "echarts-for-react": "^3.0.2",
+    "html2canvas": "^1.4.1",
     "lucide-react": "^0.577.0",
     "openai": "^4.86.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.0.0",
     "zustand": "^5.0.9"
   },

@@ -11,6 +11,9 @@ import { RunBenchmark } from '@/components/runner/RunBenchmark';
 import { ResultsPanel } from '@/components/workspace/ResultsPanel';
 import { TestSuiteEditor } from '@/components/tests/TestSuiteEditor';
 import { SettingsPanel } from '@/components/workspace/SettingsPanel';
+import { AgentPanel } from '@/components/agent/AgentPanel';
+import { AgentBenchmarkPanel } from '@/components/agent-benchmark/AgentBenchmarkPanel';
+import { BrowserPanel } from '@/components/browser/BrowserPanel';
 
 function ScrollWrap({ children }: { children: React.ReactNode }) {
   return <div className="h-full overflow-y-auto p-6">{children}</div>;
@@ -30,6 +33,12 @@ function PanelContent({ panel }: { panel: WorkspacePanel }) {
       return <ScrollWrap><TestSuiteEditor /></ScrollWrap>;
     case 'settings':
       return <ScrollWrap><SettingsPanel /></ScrollWrap>;
+    case 'agent':
+      return <AgentPanel />;
+    case 'agent-benchmark':
+      return <AgentBenchmarkPanel />;
+    case 'browser':
+      return <BrowserPanel />;
     default:
       return null;
   }

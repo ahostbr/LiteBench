@@ -5,11 +5,13 @@ import {
   deleteCase,
   deleteSuite,
   listSuites,
+  seedAgent,
   seedDefaults,
   seedJudgment,
   seedSpeed,
   seedStandard,
   seedStress,
+  seedCreator,
   updateCase,
 } from '../db';
 import type {
@@ -49,6 +51,14 @@ export function registerSuitesHandlers(): void {
 
   ipcMain.handle('bench:suites:seed-judgment', () => {
     return seedJudgment();
+  });
+
+  ipcMain.handle('bench:suites:seed-creator', () => {
+    return seedCreator();
+  });
+
+  ipcMain.handle('bench:suites:seed-agent', () => {
+    return seedAgent();
   });
 
   ipcMain.handle(

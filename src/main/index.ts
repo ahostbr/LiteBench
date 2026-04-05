@@ -3,6 +3,8 @@ import { electronApp, optimizer } from '@electron-toolkit/utils';
 import { join } from 'path';
 import { closeDatabase, initializeDatabase } from './db';
 import { registerBenchmarksHandlers } from './ipc/benchmarks-handlers';
+import { registerAgentHandlers } from './ipc/agent-handlers';
+import { registerBrowserHandlers } from './ipc/browser-handlers';
 import { registerEndpointsHandlers } from './ipc/endpoints-handlers';
 import { registerSuitesHandlers } from './ipc/suites-handlers';
 import {
@@ -173,6 +175,8 @@ app.whenReady().then(() => {
   registerEndpointsHandlers();
   registerSuitesHandlers();
   registerBenchmarksHandlers();
+  registerAgentHandlers();
+  registerBrowserHandlers();
 
   createMainWindow();
 

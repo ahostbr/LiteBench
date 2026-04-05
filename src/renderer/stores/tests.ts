@@ -7,6 +7,8 @@ interface TestsState {
   loading: boolean;
   fetch: () => Promise<void>;
   seedDefaults: () => Promise<void>;
+  seedAgent: () => Promise<void>;
+  seedCreator: () => Promise<void>;
   createSuite: (name: string, description?: string) => Promise<TestSuite>;
   deleteSuite: (id: number) => Promise<void>;
   addCase: (suiteId: number, data: Record<string, unknown>) => Promise<void>;
@@ -26,6 +28,16 @@ export const useTestsStore = create<TestsState>((set, get) => ({
 
   seedDefaults: async () => {
     await api.suites.seedDefaults();
+    await get().fetch();
+  },
+
+  seedAgent: async () => {
+    await api.suites.seedAgent();
+    await get().fetch();
+  },
+
+  seedCreator: async () => {
+    await api.suites.seedCreator();
     await get().fetch();
   },
 

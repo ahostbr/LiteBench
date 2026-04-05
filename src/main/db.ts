@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import suiteCatalogData from './data/suite-catalog.json';
 import type {
+  AgentSuiteDefinition,
   BenchmarkRun,
   BenchmarkRunRequest,
   BenchmarkSummary,
@@ -30,6 +31,8 @@ interface SuiteCatalog {
   stress: SuiteDefinition[];
   speed: SuiteDefinition[];
   judgment: SuiteDefinition[];
+  creator: SuiteDefinition[];
+  agent: AgentSuiteDefinition[];
 }
 
 const suiteCatalog = suiteCatalogData as SuiteCatalog;
@@ -67,7 +70,10 @@ CREATE TABLE IF NOT EXISTS test_cases (
     eval_regex TEXT NOT NULL DEFAULT '[]',
     eval_min_length INTEGER,
     max_tokens INTEGER NOT NULL DEFAULT 600,
-    sort_order INTEGER NOT NULL DEFAULT 0
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    is_agent_task INTEGER NOT NULL DEFAULT 0,
+    tool_hints TEXT NOT NULL DEFAULT '[]',
+    expected_tool_calls INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS benchmark_runs (
@@ -77,6 +83,7 @@ CREATE TABLE IF NOT EXISTS benchmark_runs (
     model_id TEXT NOT NULL,
     model_name TEXT NOT NULL,
     is_thinking INTEGER NOT NULL DEFAULT 0,
+    is_agent_run INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'pending',
     avg_score REAL,
     avg_tps REAL,
@@ -105,11 +112,14 @@ CREATE TABLE IF NOT EXISTS test_results (
     violations TEXT NOT NULL DEFAULT '[]',
     had_thinking INTEGER NOT NULL DEFAULT 0,
     thinking_tokens_approx INTEGER NOT NULL DEFAULT 0,
-    answer_length INTEGER NOT NULL DEFAULT 0
+    answer_length INTEGER NOT NULL DEFAULT 0,
+    tool_calls_made INTEGER NOT NULL DEFAULT 0,
+    tool_calls_correct INTEGER NOT NULL DEFAULT 0,
+    tool_score REAL NOT NULL DEFAULT 0
 );
 `;
 
-const DEFAULT_ENDPOINT = 'http://169.254.83.107:1234/v1';
+const DEFAULT_ENDPOINT = 'http://localhost:1234/v1';
 
 const SUITE_METADATA: Record<
   keyof SuiteCatalog,
@@ -140,6 +150,16 @@ const SUITE_METADATA: Record<
     name: 'Judgment Suite',
     description:
       '12 tests for common sense, data hygiene, RAG refusal, epistemic calibration, and pipeline-vs-understanding judgment',
+  },
+  creator: {
+    name: 'Creator Suite',
+    description:
+      '15 practical tests for content creators: YouTube hooks, tweets, summaries, emails, reasoning',
+  },
+  agent: {
+    name: 'Agent Suite',
+    description:
+      '12 real-world agentic tasks: web search, file I/O, multi-step tool chaining, browser navigation, code execution',
   },
 };
 
@@ -208,6 +228,9 @@ function rowToCase(row: SqlRow): TestCase {
       row.eval_min_length === null ? null : Number(row.eval_min_length),
     max_tokens: Number(row.max_tokens),
     sort_order: Number(row.sort_order),
+    is_agent_task: Boolean(row.is_agent_task),
+    tool_hints: parseJsonArray(row.tool_hints),
+    expected_tool_calls: Number(row.expected_tool_calls ?? 0),
   };
 }
 
@@ -233,6 +256,9 @@ function rowToResult(row: SqlRow): TestResult {
     had_thinking: Boolean(row.had_thinking),
     thinking_tokens_approx: Number(row.thinking_tokens_approx ?? 0),
     answer_length: Number(row.answer_length ?? 0),
+    tool_calls_made: Number(row.tool_calls_made ?? 0),
+    tool_calls_correct: Number(row.tool_calls_correct ?? 0),
+    tool_score: Number(row.tool_score ?? 0),
   };
 }
 
@@ -244,6 +270,7 @@ function rowToRun(row: SqlRow): BenchmarkRun {
     model_id: String(row.model_id),
     model_name: String(row.model_name),
     is_thinking: Boolean(row.is_thinking),
+    is_agent_run: Boolean(row.is_agent_run),
     status: String(row.status),
     avg_score: row.avg_score === null ? null : Number(row.avg_score),
     avg_tps: row.avg_tps === null ? null : Number(row.avg_tps),
@@ -296,6 +323,41 @@ export function initializeDatabase(): string {
     'test_cases',
     'eval_min_length',
     'ALTER TABLE test_cases ADD COLUMN eval_min_length INTEGER',
+  );
+  ensureColumn(
+    'test_cases',
+    'is_agent_task',
+    'ALTER TABLE test_cases ADD COLUMN is_agent_task INTEGER NOT NULL DEFAULT 0',
+  );
+  ensureColumn(
+    'test_cases',
+    'tool_hints',
+    "ALTER TABLE test_cases ADD COLUMN tool_hints TEXT NOT NULL DEFAULT '[]'",
+  );
+  ensureColumn(
+    'test_cases',
+    'expected_tool_calls',
+    'ALTER TABLE test_cases ADD COLUMN expected_tool_calls INTEGER NOT NULL DEFAULT 0',
+  );
+  ensureColumn(
+    'benchmark_runs',
+    'is_agent_run',
+    'ALTER TABLE benchmark_runs ADD COLUMN is_agent_run INTEGER NOT NULL DEFAULT 0',
+  );
+  ensureColumn(
+    'test_results',
+    'tool_calls_made',
+    'ALTER TABLE test_results ADD COLUMN tool_calls_made INTEGER NOT NULL DEFAULT 0',
+  );
+  ensureColumn(
+    'test_results',
+    'tool_calls_correct',
+    'ALTER TABLE test_results ADD COLUMN tool_calls_correct INTEGER NOT NULL DEFAULT 0',
+  );
+  ensureColumn(
+    'test_results',
+    'tool_score',
+    'ALTER TABLE test_results ADD COLUMN tool_score REAL NOT NULL DEFAULT 0',
   );
 
   ensureDb().prepare(
@@ -591,11 +653,13 @@ function insertSuiteDefinition(key: keyof SuiteCatalog): SeedSuiteResponse {
     `INSERT INTO test_cases (
       suite_id, test_id, category, name, system_prompt, user_prompt,
       eval_keywords, eval_anti, eval_json, eval_sentence_count,
-      eval_regex, eval_min_length, max_tokens, sort_order
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      eval_regex, eval_min_length, max_tokens, sort_order,
+      is_agent_task, tool_hints, expected_tool_calls
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
 
-  suiteCatalog[key].forEach((test, index) => {
+  (suiteCatalog[key] as Array<SuiteDefinition | AgentSuiteDefinition>).forEach((test, index) => {
+    const agentTest = test as AgentSuiteDefinition;
     insertCase.run(
       suiteId,
       test.test_id,
@@ -611,6 +675,9 @@ function insertSuiteDefinition(key: keyof SuiteCatalog): SeedSuiteResponse {
       test.eval_min_length ?? null,
       test.max_tokens,
       index,
+      agentTest.is_agent_task ? 1 : 0,
+      JSON.stringify(agentTest.tool_hints ?? []),
+      agentTest.expected_tool_calls ?? 0,
     );
   });
 
@@ -640,13 +707,21 @@ export function seedJudgment(): SeedSuiteResponse {
   return insertSuiteDefinition('judgment');
 }
 
+export function seedCreator(): SeedSuiteResponse {
+  return insertSuiteDefinition('creator');
+}
+
+export function seedAgent(): SeedSuiteResponse {
+  return insertSuiteDefinition('agent');
+}
+
 export function createBenchmarkRun(request: BenchmarkRunRequest): number {
   const now = getNowIso();
   const result = ensureDb()
     .prepare(
       `INSERT INTO benchmark_runs (
-        endpoint_id, suite_id, model_id, model_name, is_thinking, status, started_at
-      ) VALUES (?, ?, ?, ?, ?, 'running', ?)`,
+        endpoint_id, suite_id, model_id, model_name, is_thinking, is_agent_run, status, started_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'running', ?)`,
     )
     .run(
       request.endpoint_id,
@@ -654,6 +729,7 @@ export function createBenchmarkRun(request: BenchmarkRunRequest): number {
       request.model_id,
       request.model_name,
       request.is_thinking ? 1 : 0,
+      request.is_agent_run ? 1 : 0,
       now,
     );
   return Number(result.lastInsertRowid);
@@ -669,8 +745,9 @@ export function insertTestResult(
         run_id, test_case_id, test_id, category, name, content, elapsed_s,
         prompt_tokens, completion_tokens, tokens_per_sec, finish_reason,
         final_score, keyword_score, keyword_hits, keyword_misses, violations,
-        had_thinking, thinking_tokens_approx, answer_length
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        had_thinking, thinking_tokens_approx, answer_length,
+        tool_calls_made, tool_calls_correct, tool_score
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       runId,
@@ -692,6 +769,9 @@ export function insertTestResult(
       result.had_thinking ? 1 : 0,
       result.thinking_tokens_approx,
       result.answer_length,
+      result.tool_calls_made ?? 0,
+      result.tool_calls_correct ?? 0,
+      result.tool_score ?? 0,
     );
   return Number(inserted.lastInsertRowid);
 }

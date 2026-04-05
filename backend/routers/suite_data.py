@@ -1455,3 +1455,185 @@ JUDGMENT_TESTS = [
         "max_tokens": 800,
     },
 ]
+
+
+CREATOR_TESTS = [
+    # --- Content Creation ---
+    {
+        "test_id": "cr-content-1",
+        "category": "Content Creation",
+        "name": "Write a YouTube video hook",
+        "system_prompt": "You are a YouTube content strategist. Write punchy, attention-grabbing hooks that make viewers stop scrolling.",
+        "user_prompt": "Write 3 different opening hooks (first 30 seconds) for a YouTube video titled 'I Tested 5 AI Tools So You Don't Have To'. Each hook should be 2-3 sentences and use a different strategy (curiosity gap, bold claim, story).",
+        "eval_keywords": ["AI", "test", "tool"],
+        "eval_anti": ["As an AI", "I'm an AI language model", "I cannot"],
+        "eval_min_length": 200,
+        "max_tokens": 600,
+    },
+    {
+        "test_id": "cr-content-2",
+        "category": "Content Creation",
+        "name": "Generate tweet thread",
+        "system_prompt": "You write viral Twitter/X threads. Each tweet must be under 280 characters. Use hooks, storytelling, and clear formatting.",
+        "user_prompt": "Write a 5-tweet thread about why local AI models are the future of privacy. Start with a hook tweet. End with a call to action. Number each tweet. Include at least one surprising stat or claim.",
+        "eval_keywords": ["privacy", "local", "1/5", "5/5"],
+        "eval_anti": ["As an AI"],
+        "max_tokens": 600,
+    },
+    {
+        "test_id": "cr-content-3",
+        "category": "Content Creation",
+        "name": "Video title brainstorm",
+        "system_prompt": "You are a YouTube title expert. Generate titles optimized for clicks without being misleading. Use proven formulas.",
+        "user_prompt": "Give me 10 YouTube video title ideas for a video comparing GPT-4o vs Claude vs Gemini for everyday tasks. Mix different title formulas: numbers, questions, bold claims, comparisons. Each title should be under 60 characters.",
+        "eval_keywords": ["GPT", "Claude", "Gemini"],
+        "eval_anti": [],
+        "max_tokens": 400,
+    },
+    {
+        "test_id": "cr-content-4",
+        "category": "Content Creation",
+        "name": "Blog intro paragraph",
+        "system_prompt": "You are a tech blogger writing for a non-technical audience. Your tone is conversational, clear, and engaging.",
+        "user_prompt": "Write an intro paragraph (150-200 words) for a blog post titled 'Running AI on Your Own Computer: A Beginner's Guide'. Hook the reader with a relatable scenario, explain why this matters, and preview what they'll learn.",
+        "eval_keywords": ["computer", "AI", "local", "guide"],
+        "eval_anti": ["As an AI", "I'm happy to help"],
+        "eval_min_length": 150,
+        "max_tokens": 400,
+    },
+    {
+        "test_id": "cr-content-5",
+        "category": "Content Creation",
+        "name": "Newsletter subject lines",
+        "system_prompt": "You write email newsletter subject lines that achieve high open rates. Be specific, create urgency or curiosity, keep them short.",
+        "user_prompt": "Write 8 subject lines for a weekly AI newsletter. This week's stories: new open-source model beats GPT-4, Apple adding on-device AI to Siri, and a tool that clones your voice in 10 seconds. Each subject line must be under 50 characters.",
+        "eval_keywords": ["open-source", "Apple", "voice"],
+        "eval_anti": [],
+        "max_tokens": 300,
+    },
+    # --- Summarization ---
+    {
+        "test_id": "cr-summarize-1",
+        "category": "Summarization",
+        "name": "Summarize article into bullet points",
+        "system_prompt": "You produce concise, accurate summaries. Capture the key points without adding your own opinions.",
+        "user_prompt": (
+            "Summarize the following into exactly 5 bullet points:\n\n"
+            "Artificial intelligence is transforming healthcare in ways that would have seemed impossible a decade ago. "
+            "Machine learning algorithms can now detect certain cancers from medical images with accuracy rivaling experienced radiologists. "
+            "Natural language processing helps doctors navigate vast medical literature, identifying relevant treatment options in seconds. "
+            "Wearable devices combined with AI can predict cardiac events hours before they occur, potentially saving thousands of lives annually. "
+            "However, significant challenges remain: data privacy concerns, algorithmic bias in training datasets that underrepresent minorities, "
+            "the high cost of implementation in resource-limited settings, and the need for regulatory frameworks that can keep pace with rapid innovation. "
+            "Despite these hurdles, global investment in AI healthcare startups exceeded $15 billion last year, suggesting strong confidence in the technology's potential."
+        ),
+        "eval_keywords": ["cancer", "wearable", "privacy", "bias", "$15 billion"],
+        "eval_anti": [],
+        "max_tokens": 400,
+    },
+    {
+        "test_id": "cr-summarize-2",
+        "category": "Summarization",
+        "name": "Explain complex topic like I'm 5",
+        "system_prompt": "You explain complex topics in simple terms that a child could understand. Use analogies, short sentences, and avoid jargon.",
+        "user_prompt": "Explain how a large language model works. Use an analogy a 5-year-old would understand. Keep it under 150 words.",
+        "eval_keywords": ["word", "predict", "learn", "read"],
+        "eval_anti": ["transformer architecture", "attention mechanism", "gradient descent", "parameters"],
+        "max_tokens": 300,
+    },
+    {
+        "test_id": "cr-summarize-3",
+        "category": "Summarization",
+        "name": "Extract key takeaways from meeting notes",
+        "system_prompt": "You extract actionable takeaways from messy meeting notes. Be structured and concise.",
+        "user_prompt": (
+            "Extract action items, decisions made, and open questions from these meeting notes:\n\n"
+            "Team sync 4/1 - Sarah mentioned the API redesign is behind schedule, needs 2 more weeks. "
+            "Mike agreed to help with the auth module. Budget for Q2 cloud costs approved at $45k, "
+            "down from the $60k request. Need to decide on database migration timeline by Friday - "
+            "either PostgreSQL or keep MySQL with read replicas. Jake will prepare a comparison doc. "
+            "Design review for the new dashboard pushed to next Thursday. Customer feedback from "
+            "beta: 80% positive but login flow is confusing. Lisa will lead a UX audit next week."
+        ),
+        "eval_keywords": ["action item", "decision", "Sarah", "Mike", "Jake", "Lisa", "$45k", "Friday"],
+        "eval_anti": [],
+        "max_tokens": 500,
+    },
+    # --- Everyday Tasks ---
+    {
+        "test_id": "cr-everyday-1",
+        "category": "Everyday Tasks",
+        "name": "Draft a professional email",
+        "system_prompt": "You write clear, professional emails. Match the appropriate tone for the context.",
+        "user_prompt": "Draft an email to a client explaining that the project delivery will be delayed by one week due to unexpected technical issues. Be honest but reassuring. Include a revised timeline and an offer to discuss. Keep it under 200 words.",
+        "eval_keywords": ["delay", "week", "apologize", "timeline", "discuss"],
+        "eval_anti": ["As an AI"],
+        "eval_min_length": 100,
+        "max_tokens": 400,
+    },
+    {
+        "test_id": "cr-everyday-2",
+        "category": "Everyday Tasks",
+        "name": "Write a product description",
+        "system_prompt": "You write compelling product descriptions that highlight benefits over features. Your copy converts browsers into buyers.",
+        "user_prompt": "Write a product description (100-150 words) for a pair of wireless noise-canceling headphones priced at $79. Key features: 30-hour battery, ANC with transparency mode, Bluetooth 5.3, foldable design, weighs 250g. Target audience: remote workers and commuters.",
+        "eval_keywords": ["noise-cancel", "battery", "Bluetooth", "comfort"],
+        "eval_anti": ["As an AI"],
+        "eval_min_length": 100,
+        "max_tokens": 300,
+    },
+    {
+        "test_id": "cr-everyday-3",
+        "category": "Everyday Tasks",
+        "name": "Create a comparison table",
+        "system_prompt": "You organize information into clear, scannable tables. Use markdown formatting.",
+        "user_prompt": "Create a comparison table of Python, JavaScript, and Rust for someone choosing a language to learn in 2026. Include columns for: Learning Curve, Job Market, Performance, Best Use Case, Community Size. Rate learning curve as Easy/Medium/Hard.",
+        "eval_keywords": ["Python", "JavaScript", "Rust", "Easy", "Performance"],
+        "eval_anti": [],
+        "max_tokens": 500,
+    },
+    {
+        "test_id": "cr-everyday-4",
+        "category": "Everyday Tasks",
+        "name": "Plan a meeting agenda",
+        "system_prompt": "You create structured, time-boxed meeting agendas that respect everyone's time.",
+        "user_prompt": "Create a 30-minute meeting agenda for a quarterly team retrospective. The team has 6 people. Include time allocations for each section. Cover: what went well, what didn't, action items for next quarter. Make it practical, not corporate fluff.",
+        "eval_keywords": ["minute", "went well", "action item", "next quarter"],
+        "eval_anti": [],
+        "max_tokens": 400,
+    },
+    # --- Reasoning ---
+    {
+        "test_id": "cr-reason-1",
+        "category": "Reasoning",
+        "name": "Fact-check a claim with reasoning",
+        "system_prompt": "You fact-check claims by reasoning step-by-step. Be honest about uncertainty. Cite your reasoning.",
+        "user_prompt": "Fact-check this claim: 'The average person swallows 8 spiders per year in their sleep.' Walk me through your reasoning. Is this true, false, or uncertain? Explain why.",
+        "eval_keywords": ["false", "myth", "spider", "vibration"],
+        "eval_anti": [],
+        "eval_min_length": 150,
+        "max_tokens": 500,
+    },
+    {
+        "test_id": "cr-reason-2",
+        "category": "Reasoning",
+        "name": "Pros and cons analysis",
+        "system_prompt": "You provide balanced, thoughtful analysis. Present both sides fairly before giving your recommendation.",
+        "user_prompt": "Give me the pros and cons of switching from Google Docs to Notion for a 10-person startup. Consider: cost, learning curve, collaboration, integrations, and data ownership. End with a clear recommendation.",
+        "eval_keywords": ["pros", "cons", "cost", "collaboration", "recommend"],
+        "eval_anti": ["As an AI", "I cannot recommend"],
+        "eval_min_length": 250,
+        "max_tokens": 600,
+    },
+    {
+        "test_id": "cr-reason-3",
+        "category": "Reasoning",
+        "name": "Recommendation with justification",
+        "system_prompt": "You give specific, actionable recommendations backed by clear reasoning. Don't hedge unnecessarily.",
+        "user_prompt": "I have a budget of $1,000 to build a home office setup for video calls and content creation. What should I buy? Give me a specific list with approximate prices. Prioritize things that will have the biggest impact on video/audio quality.",
+        "eval_keywords": ["camera", "microphone", "light", "desk", "$"],
+        "eval_anti": ["As an AI", "I cannot", "I don't have personal"],
+        "eval_min_length": 200,
+        "max_tokens": 600,
+    },
+]

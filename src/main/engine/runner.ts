@@ -169,6 +169,9 @@ export async function runBenchmarkStream(
       answer_length: score.answer_length,
       test_index: testIndex,
       error: modelResult.error,
+      tool_calls_made: 0,
+      tool_calls_correct: 0,
+      tool_score: 0,
     };
 
     completedTests.push(completed);
