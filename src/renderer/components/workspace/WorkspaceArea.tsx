@@ -14,6 +14,7 @@ import { SettingsPanel } from '@/components/workspace/SettingsPanel';
 import { AgentPanel } from '@/components/agent/AgentPanel';
 import { AgentBenchmarkPanel } from '@/components/agent-benchmark/AgentBenchmarkPanel';
 import { BrowserPanel } from '@/components/browser/BrowserPanel';
+import { WelcomePanel } from '@/components/workspace/WelcomePanel';
 import { lazy, Suspense } from 'react';
 
 const TerminalPanel = lazy(() => import('@/components/terminal/TerminalPanel').then(m => ({ default: m.TerminalPanel })));
@@ -26,6 +27,8 @@ function PanelContent({ panel }: { panel: WorkspacePanel }) {
   const addPanel = useWorkspaceStore((s) => s.addPanel);
 
   switch (panel.type) {
+    case 'welcome':
+      return <ScrollWrap><WelcomePanel /></ScrollWrap>;
     case 'dashboard':
       return <ScrollWrap><Dashboard onSelectRun={() => addPanel('results')} /></ScrollWrap>;
     case 'runner':

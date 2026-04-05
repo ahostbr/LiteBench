@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type PanelType = 'dashboard' | 'runner' | 'results' | 'tests' | 'settings' | 'agent' | 'browser' | 'agent-benchmark' | 'terminal';
+export type PanelType = 'welcome' | 'dashboard' | 'runner' | 'results' | 'tests' | 'settings' | 'agent' | 'browser' | 'agent-benchmark' | 'terminal';
 
 export interface WorkspacePanel {
   id: string;
@@ -9,6 +9,7 @@ export interface WorkspacePanel {
 }
 
 const PANEL_TITLES: Record<PanelType, string> = {
+  welcome: 'Welcome',
   dashboard: 'Dashboard',
   runner: 'Run Benchmark',
   results: 'Results',
@@ -51,9 +52,9 @@ let panelCounter = 0;
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   panels: [
-    { id: 'ws-dashboard-1', type: 'dashboard', title: 'Dashboard' },
+    { id: 'ws-welcome-1', type: 'welcome', title: 'Welcome' },
   ],
-  activePanelId: 'ws-dashboard-1',
+  activePanelId: 'ws-welcome-1',
 
   addPanel: (type: PanelType) => {
     const existing = get().panels.find((p) => p.type === type);
