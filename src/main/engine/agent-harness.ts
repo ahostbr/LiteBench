@@ -170,7 +170,7 @@ function buildSmallModelPrompt(modelId: string, customInstructions?: string): st
     `4. Never say "I cannot" — use your tools instead.`,
     ``,
     `TOOLS:`,
-    `- web_search: search the internet. Args: {"action":"search","query":"..."}`,
+    `- web_search: search Google. Args: {"query":"..."}`,
     `- web_fetch: read a URL. Args: {"action":"fetch","url":"..."}`,
     `- browser_navigate: open URL in browser. Args: {"url":"..."}`,
     `- browser_read_page: read current page content. No args.`,

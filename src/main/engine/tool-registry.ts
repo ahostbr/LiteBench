@@ -103,34 +103,73 @@ export const toolRegistry = new ToolRegistry();
 
 toolRegistry.register({
   category: 'search',
-  module: 'web_search',
-  handler: 'handle_web_search',
   schema: {
     type: 'function',
     function: {
       name: 'web_search',
       description:
-        'Search the web using DuckDuckGo. Use for current events, facts, or any information that may not be in training data.',
+        'Search the web. Returns search results with titles, URLs, and snippets.',
       parameters: {
         type: 'object',
         properties: {
-          action: {
-            type: 'string',
-            enum: ['search', 'news'],
-            description: 'search for general results, news for recent news articles',
-          },
           query: {
             type: 'string',
             description: 'Search query string',
           },
           max_results: {
             type: 'number',
-            description: 'Maximum number of results to return (default: 10)',
+            description: 'Maximum number of results to return (default: 5)',
           },
         },
-        required: ['action', 'query'],
+        required: ['query'],
       },
     },
+  },
+  executor: async (args) => {
+    const query = args.query as string;
+    const maxResults = (args.max_results as number) ?? 5;
+    const sessionId = requireBrowserSession();
+
+    // Navigate to DuckDuckGo HTML search (no CAPTCHA, no JS required)
+    const encoded = encodeURIComponent(query);
+    await navigateTo(sessionId, `https://html.duckduckgo.com/html/?q=${encoded}`);
+
+    // Extract search results from the DDG HTML page
+    const searchResults = await executeJS(sessionId, `(function() {
+      const results = [];
+      const items = document.querySelectorAll('.result');
+      for (const item of items) {
+        if (results.length >= ${maxResults}) break;
+        const linkEl = item.querySelector('.result__a');
+        const snippetEl = item.querySelector('.result__snippet');
+        const urlEl = item.querySelector('.result__url');
+        if (linkEl) {
+          results.push({
+            title: linkEl.textContent?.trim() || '',
+            url: urlEl?.textContent?.trim() || linkEl.getAttribute('href') || '',
+            snippet: snippetEl?.textContent?.trim()?.substring(0, 200) || '',
+          });
+        }
+      }
+      return results;
+    })()`);
+
+    const items = searchResults as Array<{ title: string; url: string; snippet: string }>;
+    if (!items || items.length === 0) {
+      // Fallback: return raw page text
+      const page = await readPage(sessionId) as { visibleText: string; title: string };
+      return `Search for "${query}" — results page loaded.\n\n${page.visibleText?.substring(0, 2000) || '(no results found)'}`;
+    }
+
+    const lines = [`Search results for "${query}":\n`];
+    items.forEach((item, i) => {
+      lines.push(`${i + 1}. ${item.title}`);
+      lines.push(`   ${item.url}`);
+      if (item.snippet) lines.push(`   ${item.snippet}`);
+      lines.push('');
+    });
+
+    return lines.join('\n');
   },
 });
 
