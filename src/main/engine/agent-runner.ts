@@ -7,7 +7,7 @@ import type {
 } from '../../shared/types';
 import { executeTool } from './tool-executor';
 import { toolRegistry, setBrowserContextKey, cleanupBrowserSession } from './tool-registry';
-import { buildSystemPrompt, supportsNativeToolCalling, parseXMLToolCalls } from './agent-harness';
+import { buildSystemPrompt, supportsNativeToolCalling, parseXMLToolCalls, isSmallModel } from './agent-harness';
 
 type OpenAIMessage = OpenAI.Chat.ChatCompletionMessageParam;
 
@@ -106,6 +106,7 @@ export async function streamAgentChat(
         messages: conversation,
         tools: useNativeTools ? toolSchemas : undefined,
         tool_choice: useNativeTools ? 'auto' : undefined,
+        temperature: isSmallModel(modelId) ? 0.3 : undefined,
         stream: true,
       });
     } catch (error) {

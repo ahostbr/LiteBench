@@ -60,6 +60,16 @@ interface ToolSchema {
 /**
  * Build the system prompt for the agent, adapted to the model's capabilities.
  */
+/**
+ * Detect if model is likely very small (sub-2B) based on name patterns.
+ * Small models need simpler prompts and concrete examples.
+ */
+export function isSmallModel(modelId: string): boolean {
+  const lower = modelId.toLowerCase();
+  return /\b(0\.\d+b|0\.8b|1b|1\.5b|752m|500m)\b/.test(lower) ||
+    lower.includes('0.8b') || lower.includes('0.5b');
+}
+
 export function buildSystemPrompt(
   modelId: string,
   tools: ToolSchema[],
@@ -70,9 +80,15 @@ export function buildSystemPrompt(
 ): string {
   const isNative = supportsNativeToolCalling(modelId);
   const enableTools = options?.enableTools ?? true;
+  const small = isSmallModel(modelId);
 
-  if (isNative || !enableTools) {
+  if ((isNative || !enableTools) && !small) {
     return buildNativeSystemPrompt(modelId, options?.customInstructions);
+  }
+
+  // Small models get a compact native prompt with a concrete example
+  if (isNative && small) {
+    return buildSmallModelPrompt(modelId, options?.customInstructions);
   }
 
   return buildXMLSystemPrompt(modelId, tools, options?.customInstructions);
@@ -134,6 +150,43 @@ function buildNativeSystemPrompt(modelId: string, customInstructions?: string): 
 
   if (customInstructions) {
     parts.push('', `## Custom Instructions`, customInstructions);
+  }
+
+  return parts.join('\n');
+}
+
+/**
+ * Ultra-compact prompt for small models (sub-2B).
+ * Fewer rules, concrete example, direct language.
+ */
+function buildSmallModelPrompt(modelId: string, customInstructions?: string): string {
+  const parts: string[] = [
+    `You have tools. Use them to answer questions. Do NOT make up answers.`,
+    ``,
+    `RULES:`,
+    `1. Call ONE tool, wait for result, then answer.`,
+    `2. ALWAYS write a text answer after getting tool results.`,
+    `3. Include real data from tool results in your answer.`,
+    `4. Never say "I cannot" — use your tools instead.`,
+    ``,
+    `TOOLS:`,
+    `- web_search: search the internet. Args: {"action":"search","query":"..."}`,
+    `- web_fetch: read a URL. Args: {"action":"fetch","url":"..."}`,
+    `- browser_navigate: open URL in browser. Args: {"url":"..."}`,
+    `- browser_read_page: read current page content. No args.`,
+    `- sandbox: run code. Args: {"action":"execute","code":"...","language":"python"}`,
+    ``,
+    `EXAMPLE:`,
+    `User: "What is on example.com?"`,
+    `→ You call browser_navigate({"url":"https://example.com"})`,
+    `→ Result: "Page loaded: Example Domain"`,
+    `→ You call browser_read_page()`,
+    `→ Result: page text`,
+    `→ You write: "Example.com contains a page titled Example Domain. It says..."`,
+  ];
+
+  if (customInstructions) {
+    parts.push('', customInstructions);
   }
 
   return parts.join('\n');

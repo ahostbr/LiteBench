@@ -34,7 +34,7 @@ async function runPython(
     const proc = spawn('python', ['-c', script], {
       cwd,
       env: process.env,
-      shell: false,
+      shell: true, // Required on Windows — python not found without shell PATH resolution
     });
 
     const onAbort = () => {
