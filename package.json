@@ -7,7 +7,7 @@
   "author": "Ryan Devlin",
   "packageManager": "pnpm@10.0.0",
   "scripts": {
-    "postinstall": "npx @electron/rebuild -m . -o better-sqlite3",
+    "postinstall": "npx @electron/rebuild -m . -o better-sqlite3 && npx @electron/rebuild -m . -o node-pty || echo 'node-pty rebuild skipped (using prebuilds)'",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron .",
