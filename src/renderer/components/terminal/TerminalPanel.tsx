@@ -19,6 +19,7 @@ export function TerminalPanel() {
 
   const [started, setStarted] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const startTerminal = useCallback(async () => {
     if (started || connecting) return;
@@ -26,10 +27,16 @@ export function TerminalPanel() {
 
     try {
       // Spawn PTY
-      const { id } = await window.liteBench.pty.create({
+      const result = await window.liteBench.pty.create({
         cmd: 'powershell.exe',
         args: ['-NoLogo'],
       });
+
+      if (!result.id || result.error) {
+        throw new Error(result.error || 'Failed to create terminal session');
+      }
+
+      const id = result.id;
       ptyIdRef.current = id;
 
       // Create xterm instance
@@ -122,6 +129,7 @@ export function TerminalPanel() {
     } catch (err) {
       console.error('[Terminal] Failed to start:', err);
       setConnecting(false);
+      setError(String(err instanceof Error ? err.message : err));
     }
   }, [started, connecting]);
 
@@ -157,8 +165,13 @@ export function TerminalPanel() {
             Type <span style={{ color: 'var(--accent, #c9a24d)' }}>claude</span> to start the AI orchestrator
           </p>
         </div>
+        {error && (
+          <p className="text-[11px] max-w-sm text-center" style={{ color: '#e85450' }}>
+            {error}
+          </p>
+        )}
         <button
-          onClick={startTerminal}
+          onClick={() => { setError(null); startTerminal(); }}
           className="px-5 py-2.5 rounded-lg flex items-center gap-2 font-medium text-sm transition-all hover:opacity-90"
           style={{
             backgroundColor: 'var(--accent, #c9a24d)',

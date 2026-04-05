@@ -1,144 +1,144 @@
 /**
- * PTY Handlers — Spawns and manages terminal sessions.
+ * PTY Handlers — Terminal sessions for LiteBench.
+ * Ported from LiteSuite's pty-handlers.ts pattern.
  *
- * Uses node-pty if available (native PTY), falls back to child_process
- * with pipes (works everywhere but no full terminal emulation).
+ * Uses node-pty for real PTY. Broadcasts data to ALL renderer windows
+ * via BrowserWindow.getAllWindows() (not event.sender — survives reloads).
  */
-import { ipcMain, type WebContents } from 'electron';
-import { spawn, type ChildProcess } from 'child_process';
+import { ipcMain, BrowserWindow } from 'electron';
 import * as os from 'os';
 
-// Try node-pty first, fall back to child_process
-let ptyModule: typeof import('node-pty') | null = null;
+// ── node-pty loading ──────────────────────────────────────────────────────────
+// @ts-ignore — node-pty is a native module, may fail to load
+let pty: typeof import('node-pty') | null = null;
 try {
-  ptyModule = require('node-pty');
-  console.log('[PTY] node-pty loaded');
-} catch {
-  console.log('[PTY] node-pty not available, using child_process fallback');
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  pty = require('node-pty');
+  console.log('[PTY] node-pty loaded OK');
+} catch (err) {
+  console.error('[PTY] node-pty failed:', (err as Error).message);
 }
 
+// ── Session tracking ──────────────────────────────────────────────────────────
+
 interface PtySession {
-  type: 'pty' | 'process';
-  ptyProcess?: ReturnType<NonNullable<typeof ptyModule>['spawn']>;
-  childProcess?: ChildProcess;
-  sender: WebContents;
+  process: ReturnType<NonNullable<typeof pty>['spawn']>;
 }
 
 const sessions = new Map<string, PtySession>();
-let sessionCounter = 0;
+let counter = 0;
+
+// ── 16ms debounced flush (matches LiteSuite) ──────────────────────────────────
+
+const pendingData = new Map<string, string>();
+const flushTimers = new Map<string, NodeJS.Timeout>();
+
+function flushPtyData(id: string): void {
+  const data = pendingData.get(id);
+  if (!data) return;
+  pendingData.delete(id);
+  flushTimers.delete(id);
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send(`pty:data:${id}`, data);
+  }
+}
+
+function cleanupDebounce(id: string): void {
+  const timer = flushTimers.get(id);
+  if (timer) clearTimeout(timer);
+  flushTimers.delete(id);
+  pendingData.delete(id);
+}
+
+// ── Broadcast helper ──────────────────────────────────────────────────────────
+
+function broadcast(channel: string, ...args: unknown[]): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send(channel, ...args);
+  }
+}
+
+// ── IPC Handlers ──────────────────────────────────────────────────────────────
 
 export function registerPtyHandlers(): void {
-  ipcMain.handle('pty:create', (event, opts?: { cwd?: string; cmd?: string; args?: string[] }) => {
-    const id = `pty-${++sessionCounter}`;
+  if (!pty) {
+    // Register a stub that returns an error
+    ipcMain.handle('pty:create', () => {
+      return { id: '', pid: 0, error: 'node-pty not available. Terminal requires native module rebuild.' };
+    });
+    return;
+  }
+
+  const ptySpawn = pty.spawn;
+
+  ipcMain.handle('pty:create', (_event, opts?: { cwd?: string; cmd?: string; args?: string[] }) => {
+    const id = `pty-${++counter}-${Date.now()}`;
     const shell = opts?.cmd || (os.platform() === 'win32' ? 'powershell.exe' : 'bash');
     const shellArgs = opts?.args || (os.platform() === 'win32' ? ['-NoLogo'] : []);
     const cwd = opts?.cwd || os.homedir();
 
-    if (ptyModule) {
-      // Full PTY mode
-      try {
-        const proc = ptyModule.spawn(shell, shellArgs, {
-          name: 'xterm-256color',
-          cols: 120,
-          rows: 30,
-          cwd,
-          env: process.env as Record<string, string>,
-        });
+    console.log('[PTY] Creating:', { id, shell, cwd });
 
-        sessions.set(id, { type: 'pty', ptyProcess: proc, sender: event.sender });
+    try {
+      const proc = ptySpawn(shell, shellArgs, {
+        name: 'xterm-256color',
+        cols: 120,
+        rows: 30,
+        cwd,
+        env: process.env as Record<string, string>,
+      });
 
-        proc.onData((data: string) => {
-          try { event.sender.send(`pty:data:${id}`, data); } catch {}
-        });
+      sessions.set(id, { process: proc });
 
-        proc.onExit(({ exitCode }) => {
-          try { event.sender.send(`pty:exit:${id}`, exitCode); } catch {}
-          sessions.delete(id);
-        });
+      // Debounced data forwarding (16ms batches)
+      proc.onData((data: string) => {
+        pendingData.set(id, (pendingData.get(id) ?? '') + data);
+        if (!flushTimers.has(id)) {
+          flushTimers.set(id, setTimeout(() => flushPtyData(id), 16));
+        }
+      });
 
-        return { id, pid: proc.pid };
-      } catch (err) {
-        console.error('[PTY] node-pty spawn failed, falling back:', (err as Error).message);
-        // Fall through to child_process
-      }
+      proc.onExit(({ exitCode }) => {
+        console.log('[PTY] Exit:', { id, exitCode });
+        // Flush remaining data
+        const timer = flushTimers.get(id);
+        if (timer) clearTimeout(timer);
+        flushPtyData(id);
+        cleanupDebounce(id);
+        broadcast(`pty:exit:${id}`, exitCode);
+        sessions.delete(id);
+      });
+
+      console.log('[PTY] Spawned:', { id, pid: proc.pid });
+      return { id, pid: proc.pid };
+    } catch (err) {
+      console.error('[PTY] Spawn failed:', (err as Error).message);
+      return { id: '', pid: 0, error: (err as Error).message };
     }
-
-    // Fallback: child_process — use conpty via cmd wrapper
-    console.log('[PTY] Using child_process fallback for:', shell);
-    const proc = spawn(process.env.ComSpec || 'cmd.exe', ['/c', shell, ...shellArgs], {
-      cwd,
-      env: { ...process.env, TERM: 'xterm-256color' },
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    sessions.set(id, { type: 'process', childProcess: proc, sender: event.sender });
-
-    // Send welcome message immediately so terminal isn't blank
-    setTimeout(() => {
-      try {
-        event.sender.send(`pty:data:${id}`, `\x1b[33mLiteBench Terminal\x1b[0m\r\nType 'claude' to start the AI orchestrator.\r\n\r\n`);
-      } catch {}
-    }, 100);
-
-    proc.stdout?.on('data', (data: Buffer) => {
-      try { event.sender.send(`pty:data:${id}`, data.toString()); } catch {}
-    });
-
-    proc.stderr?.on('data', (data: Buffer) => {
-      try { event.sender.send(`pty:data:${id}`, data.toString()); } catch {}
-    });
-
-    proc.on('exit', (code) => {
-      try { event.sender.send(`pty:exit:${id}`, code ?? 0); } catch {}
-      sessions.delete(id);
-    });
-
-    proc.on('error', (err) => {
-      try {
-        event.sender.send(`pty:data:${id}`, `\r\n\x1b[31mError: ${err.message}\x1b[0m\r\n`);
-      } catch {}
-    });
-
-    return { id, pid: proc.pid ?? 0 };
   });
 
   ipcMain.on('pty:write', (_event, id: string, data: string) => {
-    const session = sessions.get(id);
-    if (!session) return;
-    if (session.type === 'pty' && session.ptyProcess) {
-      session.ptyProcess.write(data);
-    } else if (session.type === 'process' && session.childProcess?.stdin) {
-      session.childProcess.stdin.write(data);
-    }
+    sessions.get(id)?.process.write(data);
   });
 
   ipcMain.on('pty:resize', (_event, id: string, cols: number, rows: number) => {
-    const session = sessions.get(id);
-    if (!session) return;
-    if (session.type === 'pty' && session.ptyProcess) {
-      try { session.ptyProcess.resize(cols, rows); } catch {}
-    }
-    // child_process doesn't support resize — ignore
+    try { sessions.get(id)?.process.resize(cols, rows); } catch {}
   });
 
   ipcMain.handle('pty:destroy', (_event, id: string) => {
+    cleanupDebounce(id);
     const session = sessions.get(id);
-    if (!session) return;
-    if (session.type === 'pty' && session.ptyProcess) {
-      session.ptyProcess.kill();
-    } else if (session.type === 'process' && session.childProcess) {
-      session.childProcess.kill();
+    if (session) {
+      session.process.kill();
+      sessions.delete(id);
     }
-    sessions.delete(id);
   });
 }
 
 export function destroyAllPtySessions(): void {
-  for (const [, session] of sessions) {
-    try {
-      if (session.type === 'pty' && session.ptyProcess) session.ptyProcess.kill();
-      if (session.type === 'process' && session.childProcess) session.childProcess.kill();
-    } catch {}
+  for (const [id, session] of sessions) {
+    cleanupDebounce(id);
+    try { session.process.kill(); } catch {}
   }
   sessions.clear();
 }
