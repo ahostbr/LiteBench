@@ -28,6 +28,7 @@ export default function App() {
             backgroundImage: `url(${heroBg})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
+            opacity: 0.12,
             zIndex: 0,
           }}
         />
