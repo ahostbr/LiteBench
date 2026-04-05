@@ -3,6 +3,7 @@ import { Check } from 'lucide-react';
 import { useThemeStore } from '@/stores/theme-store';
 import { THEMES } from '@/lib/themes';
 import { applyThemeToDOM } from '@/lib/accent';
+import { RecommendedModels } from './RecommendedModels';
 
 function normalizeHex(color: string) {
   if (!color) return '';
@@ -219,6 +220,11 @@ export function SettingsPanel() {
       {/* Display / Zoom */}
       <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary, #e8e4dc)' }}>Display</h3>
       <ZoomSlider />
+
+      <div className="border-t border-zinc-800/50" />
+
+      {/* Recommended Models */}
+      <RecommendedModels />
     </div>
   );
 }
