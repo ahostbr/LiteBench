@@ -1,101 +1,132 @@
 # LiteBench
 
-**LLM Benchmark Studio** — test local models with practical, real-world tasks.
+**The first benchmark that actually executes tools with local AI models.**
 
-Point LiteBench at any OpenAI-compatible endpoint (LM Studio, llama.cpp, Ollama, vLLM), pick a test suite, and see which model actually performs better at the things you do every day.
+Other benchmarks check if your model generates the right JSON. LiteBench goes further — it runs real browser navigation, web search, code execution, and URL fetching, then scores the full agent loop: call tool, get result, synthesize response.
+
+13 models tested. 6 hit 100%. A 4B model browses Hacker News perfectly. A 752M model scores 87%.
+
+![Agent Chat with tool calls](docs/images/agent-chat-tools.png)
+
+## Why LiteBench?
+
+Every existing benchmark for local models either:
+- Checks JSON format only (BFCL, tool-calling-benchmark)
+- Requires Docker infrastructure (WebArena, SWE-bench)
+- Tests cloud APIs, not local models
+
+**LiteBench fills the gap**: accessible, real-tool-execution benchmarking for local models that tests what normal people actually want AI agents to do.
 
 ## Features
 
-- **6 Test Suites** — Creator, Standard, Speed, Stress, Judgment, and Multimodal
-- **Real-World Tasks** — YouTube hooks, tweet threads, email drafts, code generation, reasoning
-- **Side-by-Side Comparison** — Radar charts, heatmaps, win/loss breakdown, speed scatter
-- **Winner Card** — Big bold scoreboard with one-click PNG export
-- **Live Streaming** — Watch results come in test-by-test via SSE
-- **MCP Server** — 4 tools (bench, web_search, web_fetch, youtube) for agent-driven benchmarks
-- **Multimodal** — Audio transcription and image understanding tests
-- **Fully Local** — Your models, your hardware, your data. Nothing leaves your machine.
+- **Real Tool Execution** — Browser navigation, web search, code sandbox, URL fetching. Not mock calls.
+- **Agent Chat** — Conversational interface with streaming, tool call cards, live results
+- **Embedded Browser** — Watch the agent navigate websites in real time
+- **11 Agent Tools** — web_search, web_fetch, browser_navigate, browser_read_page, browser_click, browser_type, sandbox, youtube, and more
+- **Agent Benchmark** — Automated test suite with scoring and leaderboard
+- **Recommended Models** — Tested leaderboard with LM Studio download links
+- **Built-in Terminal** — Run Claude Code CLI to orchestrate testing autonomously
+- **Text Benchmarks** — 6 suites (Creator, Standard, Speed, Stress, Judgment, Multimodal)
+- **Fully Local** — Your models, your hardware, nothing leaves your machine
+
+![Browser navigation](docs/images/browser-navigate.png)
+
+## Model Leaderboard
+
+Scores from real tool execution — 5 tests: browser navigate, web search, page reading, code sandbox, URL fetch.
+
+| Model | Params | Score | Notes |
+|-------|--------|-------|-------|
+| **Devstral Small 2** | 24B | 100% | Best overall agent |
+| **Gemma 4 31B Opus Distill** | 31B | 100% | Chain-of-thought reasoning |
+| **Gemma 4 E2B Opus Distill** | ~11B | 100% | Plans before acting |
+| **Gemma 4 31B** | 31B | 100% | Powerful, needs stream cap |
+| **Qwen 3 4B** | 4B | 100% | Best small model — runs on any hardware |
+| **Gemma 4 E4B** | ~4B | 100% | Tiny and perfect |
+| **Gemma 4 26B-A4B** | 26B | 93% | Mixture-of-experts, fast |
+| **Gemma 3 4B** | 4B | 93% | XML fallback mode |
+| **Qwen 3.5 0.8B Opus Distill** | 752M | 87% | Remarkable for sub-1B |
+| **xLAM 2 1B** | 1B | 80% | Salesforce function-calling specialist |
 
 ## Quick Start
 
-### Desktop App (Electron)
+### Option 1: Installer (Windows)
+
+Download `LiteBench Setup 1.0.0.exe` from [Releases](https://github.com/ahostbr/LiteBench/releases).
+
+### Option 2: From Source
 
 ```bash
-git clone https://github.com/user/LiteBench.git
+git clone https://github.com/ahostbr/LiteBench.git
 cd LiteBench
 pnpm install
 pnpm dev
 ```
 
-### Backend (for MCP + API access)
+### Prerequisites
 
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --port 8001
-```
+1. **LM Studio** (or any OpenAI-compatible server) — [lmstudio.ai](https://lmstudio.ai)
+2. **Python 3.10+** — for sandbox and web tools
+3. **A model** — Start with **Qwen 3 4B** (2.5 GB, scores 100%)
 
-### MCP Server (for AI agents)
+### First Run
 
-```bash
-cd mcp-server
-pip install -r requirements.txt
-python server.py
-```
-
-## Test Suites
-
-| Suite | Tests | Focus |
-|-------|-------|-------|
-| **Creator** | 15 | YouTube hooks, tweets, summaries, emails, reasoning |
-| **Standard** | 25 | Code generation, architecture, security, multi-language |
-| **Speed** | 10 | Fast responses, 150-300 token tests |
-| **Stress** | 15 | Long-form output, 2000-4000 tokens |
-| **Judgment** | 12 | Common sense, calibration, self-critique |
-| **Multimodal** | 12 | Audio transcription, image understanding, cross-modal |
-
-## MCP Tools
-
-The standalone MCP server (`mcp-server/`) provides 4 tools for AI agents:
-
-| Tool | Description |
-|------|-------------|
-| `bench` | Manage endpoints, suites, runs, comparisons, exports |
-| `web_search` | DuckDuckGo search (no API key needed) |
-| `web_fetch` | Fetch and extract text from any URL |
-| `youtube` | YouTube transcripts and video info via yt-dlp |
-
-### Claude Desktop / Claude Code config
-
-```json
-{
-  "mcpServers": {
-    "litebench": {
-      "command": "python",
-      "args": ["C:/path/to/LiteBench/mcp-server/server.py"]
-    }
-  }
-}
-```
+1. Launch LiteBench
+2. Follow the welcome wizard (installs dependencies, recommends models)
+3. Open the **Agent Chat** panel
+4. Select your endpoint (LM Studio) and model
+5. Ask: *"Search the web for AI news and tell me the top 3 results"*
+6. Watch tool calls fire in real time
 
 ## Architecture
 
 ```
-LiteBench/
-  src/               # Electron app (React + TypeScript)
-    main/            # Main process: IPC handlers, benchmark engine, SQLite
-    renderer/        # React UI: dashboard, runner, results, comparison
-    preload/         # IPC bridge
-  backend/           # Python FastAPI (alternative API for MCP/scripts)
-  mcp-server/        # Standalone MCP server (FastMCP + 4 tools)
-  frontend/          # Legacy web frontend (not used by Electron app)
+Renderer (React)                     Main Process (Node)
++----------------------+            +--------------------------+
+|  AgentPanel           |--IPC-----> | agent-handlers.ts        |
+|  BrowserPanel         |           |   |                      |
+|  AgentBenchmarkPanel  |           | agent-runner.ts           |
+|  TerminalPanel        |<--events--| agent-harness.ts (prompt) |
+|                       |           |   | tool_call detected   |
+|  Stores (Zustand)     |           | tool-registry.ts          |
+|  - agent-chat-store   |           |   | dispatch              |
+|  - workspace-store    |           | tool-executor.ts (Python) |
++----------------------+           | browser-manager.ts (IPC)  |
+                                    +--------------------------+
 ```
+
+### Key Design Decisions
+
+- **NinjaJSON Prompting** — Model-specific system prompts enforce "ONE tool per step, STOP and wait." Prevents tool call runaway.
+- **Stream Breaking** — When models generate excess tool calls (Gemma 4 generates 600+), the stream is cut at the cap instead of silently skipping. This one fix took Gemma 4 31B from 0% to 100%.
+- **Browser-Based Search** — Web search navigates to DuckDuckGo in the embedded browser instead of using a Python API. Zero flaky dependencies.
+- **XML Fallback** — Models without native tool calling (Gemma 3) use XML `<tool_call>` format, parsed and executed by the runner.
+- **Small Model Detection** — Sub-2B models get a simplified prompt with concrete examples and lower temperature.
+
+## Claude Code Integration
+
+LiteBench ships with Claude Code skills for autonomous testing:
+
+```bash
+# Open the Terminal panel, then:
+claude
+
+# Inside Claude:
+/train --target litebench-agent    # Autonomous harness training loop
+```
+
+Skills included:
+- **bench-orchestrator** — Scan models, run harness, produce leaderboard
+- **model-download** — Grab GGUF models from HuggingFace
+- **harness-tune** — Iterative prompt tuning (evaluate/mutate/revert)
+- **train** — Full autonomous training loop
 
 ## Compatible Endpoints
 
 Any OpenAI-compatible API:
-- [LM Studio](https://lmstudio.ai)
-- [llama.cpp](https://github.com/ggml-org/llama.cpp) (llama-server)
+- [LM Studio](https://lmstudio.ai) (recommended)
 - [Ollama](https://ollama.ai)
+- [llama.cpp](https://github.com/ggml-org/llama.cpp) (llama-server)
 - [vLLM](https://vllm.ai)
 - [LocalAI](https://localai.io)
 
