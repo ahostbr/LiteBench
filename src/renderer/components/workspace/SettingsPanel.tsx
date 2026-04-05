@@ -30,6 +30,8 @@ export function SettingsPanel() {
     setReduceMotion,
     matrixRainOpacity,
     setMatrixRainOpacity,
+    backgroundOpacity,
+    setBackgroundOpacity,
   } = useThemeStore();
 
   return (
@@ -57,6 +59,29 @@ export function SettingsPanel() {
               style={{ accentColor: '#33ff33' } as React.CSSProperties}
             />
             <p className="text-[10px]" style={{ color: 'var(--text-muted, #7a756d)' }}>Lower values make the rain more subtle so text is easier to read</p>
+          </section>
+        )}
+
+        {/* Background Opacity — for themes with background image */}
+        {(activeTheme === 'lite-suite' || activeTheme === 'oscura-midnight') && (
+          <section className="flex flex-col gap-2 p-3 rounded-lg" style={{ backgroundColor: 'rgba(201,162,77,0.06)', border: '1px solid rgba(201,162,77,0.15)' }}>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: 'var(--accent, #c9a24d)' }}>
+                Background Intensity
+              </span>
+              <span className="text-[10px] tabular-nums" style={{ color: 'var(--accent, #c9a24d)' }}>{backgroundOpacity}%</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={50}
+              step={2}
+              value={backgroundOpacity}
+              onChange={(e) => setBackgroundOpacity(parseInt(e.target.value))}
+              className="w-full h-1"
+              style={{ accentColor: 'var(--accent, #c9a24d)' } as React.CSSProperties}
+            />
+            <p className="text-[10px]" style={{ color: 'var(--text-muted, #7a756d)' }}>Circuit board background texture intensity</p>
           </section>
         )}
 

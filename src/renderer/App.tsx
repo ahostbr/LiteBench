@@ -16,6 +16,7 @@ export default function App() {
   const particleLifespan = useThemeStore((s) => s.particleLifespan);
   const reduceMotion = useThemeStore((s) => s.reduceMotion);
 
+  const backgroundOpacity = useThemeStore((s) => s.backgroundOpacity);
   const isMatrix = activeTheme === 'matrix';
 
   return (
@@ -28,7 +29,7 @@ export default function App() {
             backgroundImage: `url(${heroBg})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            opacity: 0.12,
+            opacity: (backgroundOpacity ?? 12) / 100,
             zIndex: 0,
           }}
         />
