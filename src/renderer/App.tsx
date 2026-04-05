@@ -5,6 +5,7 @@ import { EmberSparks } from '@/components/effects/EmberSparks';
 import { MatrixRain } from '@/components/effects/MatrixRain';
 import { useAppearance } from '@/hooks/useAppearance';
 import { useThemeStore } from '@/stores/theme-store';
+import heroBg from '@/assets/hero-background.png';
 
 export default function App() {
   useAppearance();
@@ -24,10 +25,9 @@ export default function App() {
         <div
           className="fixed inset-0 pointer-events-none"
           style={{
-            backgroundImage: 'url(../resources/hero-background.png)',
+            backgroundImage: `url(${heroBg})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            opacity: 0.15,
             zIndex: 0,
           }}
         />
