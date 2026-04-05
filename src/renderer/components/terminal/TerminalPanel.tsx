@@ -90,6 +90,37 @@ export function TerminalPanel() {
     // NOW the div exists — attach xterm to it
     term.open(containerRef.current);
 
+    // ── Copy/Paste handling (from Kuroryuu Terminal.tsx) ──────────────────────
+    // xterm.js doesn't handle clipboard natively — we need custom key handlers.
+    term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+      // Ctrl+C: copy if text selected, otherwise pass through as SIGINT
+      if (event.type === 'keydown' && event.ctrlKey && event.key === 'c') {
+        const selection = term.getSelection();
+        if (selection) {
+          navigator.clipboard.writeText(selection).catch(() => {});
+          term.clearSelection();
+          return false; // Prevent default (don't send SIGINT when copying)
+        }
+        return true; // No selection — let it through as SIGINT
+      }
+
+      // Ctrl+V: paste from clipboard into terminal
+      if (event.type === 'keydown' && event.ctrlKey && event.key === 'v') {
+        navigator.clipboard.readText().then((text) => {
+          if (text) window.liteBench.pty.write(ptyId, text);
+        }).catch(() => {});
+        return false; // Prevent default
+      }
+
+      // Ctrl+A: select all terminal content
+      if (event.type === 'keydown' && event.ctrlKey && event.key === 'a') {
+        term.selectAll();
+        return false;
+      }
+
+      return true; // All other keys pass through normally
+    });
+
     // Wait one paint cycle for flex layout to compute dimensions
     requestAnimationFrame(() => {
       fit.fit();
@@ -97,18 +128,18 @@ export function TerminalPanel() {
     });
 
     // Wire PTY output → xterm
-    const unsubData = window.liteBench.pty.onData(ptyId, (data) => {
+    const unsubData = window.liteBench.pty.onData(ptyId, (data: string) => {
       term.write(data);
     });
 
-    const unsubExit = window.liteBench.pty.onExit(ptyId, (_code) => {
+    const unsubExit = window.liteBench.pty.onExit(ptyId, (_code: number) => {
       term.write('\r\n\x1b[90m[Session ended]\x1b[0m\r\n');
       setPtyId(null);
       setStarted(false);
     });
 
     // Wire xterm input → PTY
-    term.onData((data) => {
+    term.onData((data: string) => {
       window.liteBench.pty.write(ptyId, data);
     });
 
