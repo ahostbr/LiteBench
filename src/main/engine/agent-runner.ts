@@ -268,7 +268,9 @@ export async function streamAgentChat(
       try {
         parsedArgs = pending.arguments ? JSON.parse(pending.arguments) : {};
       } catch {
-        parsedArgs = { raw: pending.arguments };
+        // Malformed JSON from model — pass empty args so the tool can return a helpful error
+        console.warn(`[agent-runner] Malformed JSON args for ${pending.name}: ${pending.arguments?.substring(0, 100)}`);
+        parsedArgs = {};
       }
 
       assistantToolCalls.push({

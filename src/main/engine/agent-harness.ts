@@ -201,6 +201,8 @@ function buildXMLSystemPrompt(
   tools: ToolSchema[],
   customInstructions?: string,
 ): string {
+  const escXml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
   const toolDocs = tools.map((tool) => {
     const params = tool.parameters as { properties?: Record<string, { type?: string; description?: string }>; required?: string[] };
     const props = params.properties || {};
@@ -208,13 +210,13 @@ function buildXMLSystemPrompt(
 
     const paramLines = Object.entries(props).map(([name, def]) => {
       const req = required.includes(name) ? ' (required)' : ' (optional)';
-      return `    - ${name}: ${def.type || 'string'}${req} — ${def.description || ''}`;
+      return `    - ${name}: ${def.type || 'string'}${req} — ${escXml(def.description || '')}`;
     });
 
     return [
       `<tool>`,
-      `  <name>${tool.name}</name>`,
-      `  <description>${tool.description}</description>`,
+      `  <name>${escXml(tool.name)}</name>`,
+      `  <description>${escXml(tool.description)}</description>`,
       `  <parameters>`,
       ...paramLines,
       `  </parameters>`,

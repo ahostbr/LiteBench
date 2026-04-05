@@ -165,7 +165,10 @@ export const useAgentChatStore = create<AgentChatState>()(
 
       addToolCall(conversationId, toolCall) {
         const { streamingMessageId } = get();
-        if (!streamingMessageId) return;
+        if (!streamingMessageId) {
+          console.warn('[agent-store] addToolCall: no active streaming message — dropped');
+          return;
+        }
         set((s) => ({
           conversations: s.conversations.map((c) => {
             if (c.id !== conversationId) return c;

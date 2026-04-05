@@ -161,7 +161,7 @@ export function TerminalPanel() {
       unsubExit();
       resizeObserver.disconnect();
       term.dispose();
-      window.liteBench.pty.destroy(ptyId);
+      if (ptyId) window.liteBench.pty.destroy(ptyId);
     };
   }, [started, ptyId]);
 

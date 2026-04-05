@@ -64,21 +64,37 @@ export async function navigateTo(id: string, url: string): Promise<{ url: string
   // Ensure protocol
   const target = /^https?:\/\//i.test(url) ? url : `https://${url}`;
 
-  // Wait for page to finish loading (with timeout)
-  await Promise.race([
-    new Promise<void>((resolve) => {
-      session.view.webContents.once('did-finish-load', () => resolve());
-      session.view.webContents.loadURL(target);
-    }),
-    new Promise<void>((resolve) => setTimeout(resolve, 15_000)), // 15s timeout
-  ]);
+  // Wait for page to finish loading (with timeout and error handling)
+  await new Promise<void>((resolve, reject) => {
+    let done = false;
+    const finish = () => { if (!done) { done = true; resolve(); } };
+
+    const timer = setTimeout(finish, 15_000); // 15s timeout — resolve anyway
+
+    session.view.webContents.once('did-finish-load', () => {
+      clearTimeout(timer);
+      finish();
+    });
+
+    session.view.webContents.once('did-fail-load', (_event, errorCode, errorDescription) => {
+      clearTimeout(timer);
+      if (!done) {
+        done = true;
+        // Resolve instead of reject — let the agent see the error page
+        console.warn(`[browser] Navigation failed: ${errorDescription} (${errorCode})`);
+        resolve();
+      }
+    });
+
+    session.view.webContents.loadURL(target);
+  });
 
   // Small delay for JS-heavy pages to settle
   await new Promise((r) => setTimeout(r, 500));
 
   return {
     url: session.view.webContents.getURL(),
-    title: session.view.webContents.getTitle(),
+    title: session.view.webContents.getTitle() || 'Untitled',
   };
 }
 
