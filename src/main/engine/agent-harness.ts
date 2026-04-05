@@ -97,13 +97,17 @@ function buildNativeSystemPrompt(modelId: string, customInstructions?: string): 
     `- After receiving a tool result, either: (a) call a DIFFERENT tool, or (b) write your final answer.`,
     `- Maximum 3 tool calls per task. Plan your tool use efficiently.`,
     ``,
-    `## HOW TO USE TOOL RESULTS`,
+    `## RESPONDING WITH TOOL RESULTS (MANDATORY)`,
     ``,
-    `When you receive a tool result, you MUST include the actual data in your response:`,
-    `- Quote specific titles, names, numbers, and URLs from the result.`,
+    `After your final tool call returns a result, you MUST write a text response to the user.`,
+    `Do NOT end your turn with just a tool call — always follow up with a written answer.`,
+    ``,
+    `In your response:`,
+    `- Include specific data from the tool result (titles, names, numbers, URLs).`,
     `- Format lists as numbered items (1. 2. 3.).`,
-    `- For code execution: include the stdout output value.`,
-    `- NEVER say "the results show..." without including the actual data.`,
+    `- For code execution: state the output value explicitly (e.g. "The output is 55").`,
+    `- If a tool returned an error, explain what happened and what the result means.`,
+    `- NEVER produce an empty response. Always write at least one sentence.`,
     ``,
     `## BROWSING WORKFLOW`,
     ``,
@@ -225,6 +229,11 @@ interface ParsedToolCall {
 
 /**
  * Extract tool calls from model output text (for XML-mode models).
+ * Handles multiple formats that different models produce:
+ *  - <tool_call><name>X</name><arguments>{...}</arguments></tool_call>
+ *  - [TOOL_REQUEST] {"name": "X", "arguments": {...}} [END_...]
+ *  - {"name": "X", "arguments": {...}}  (bare JSON tool call)
+ *
  * Returns the clean text (without tool call blocks) and parsed tool calls.
  */
 export function parseXMLToolCalls(text: string): {
@@ -232,24 +241,46 @@ export function parseXMLToolCalls(text: string): {
   toolCalls: ParsedToolCall[];
 } {
   const toolCalls: ParsedToolCall[] = [];
-  const regex = /<tool_call>\s*<name>(.*?)<\/name>\s*<arguments>(.*?)<\/arguments>\s*<\/tool_call>/gs;
-
   let cleanText = text;
-  let match: RegExpExecArray | null;
 
-  while ((match = regex.exec(text)) !== null) {
+  // Pattern 1: Standard XML <tool_call> format
+  const xmlRegex = /<tool_call>\s*<name>(.*?)<\/name>\s*<arguments>([\s\S]*?)<\/arguments>\s*<\/tool_call>/g;
+  let match: RegExpExecArray | null;
+  while ((match = xmlRegex.exec(text)) !== null) {
     const name = match[1].trim();
     const argsStr = match[2].trim();
-
     let args: Record<string, unknown>;
-    try {
-      args = JSON.parse(argsStr);
-    } catch {
-      args = { raw: argsStr };
-    }
-
+    try { args = JSON.parse(argsStr); } catch { args = { raw: argsStr }; }
     toolCalls.push({ name, arguments: args });
     cleanText = cleanText.replace(match[0], '');
+  }
+
+  // Pattern 2: [TOOL_REQUEST] {"name": "X", "arguments": {...}} [END_...]
+  const bracketRegex = /\[TOOL_REQUEST\]\s*(\{[\s\S]*?\})\s*\[END_\w*\]/g;
+  while ((match = bracketRegex.exec(text)) !== null) {
+    try {
+      const obj = JSON.parse(match[1]);
+      if (obj.name) {
+        toolCalls.push({
+          name: obj.name,
+          arguments: obj.arguments || obj.params || {},
+        });
+        cleanText = cleanText.replace(match[0], '');
+      }
+    } catch { /* skip malformed */ }
+  }
+
+  // Pattern 3: Bare JSON tool calls — {"name": "tool_name", "arguments": {...}}
+  // Only if no tool calls found yet (avoid false positives)
+  if (toolCalls.length === 0) {
+    const jsonRegex = /\{\s*"name"\s*:\s*"(\w+)"\s*,\s*"arguments"\s*:\s*(\{[\s\S]*?\})\s*\}/g;
+    while ((match = jsonRegex.exec(text)) !== null) {
+      const name = match[1];
+      let args: Record<string, unknown>;
+      try { args = JSON.parse(match[2]); } catch { args = { raw: match[2] }; }
+      toolCalls.push({ name, arguments: args });
+      cleanText = cleanText.replace(match[0], '');
+    }
   }
 
   return { cleanText: cleanText.trim(), toolCalls };
@@ -261,8 +292,7 @@ export function parseXMLToolCalls(text: string): {
  */
 export function hasPartialToolCall(text: string): boolean {
   // Check for opening tag without closing
-  const openIdx = text.lastIndexOf('<tool_call>');
-  if (openIdx === -1) return false;
-  const closeIdx = text.indexOf('</tool_call>', openIdx);
-  return closeIdx === -1;
+  if (text.lastIndexOf('<tool_call>') > text.lastIndexOf('</tool_call>')) return true;
+  if (text.lastIndexOf('[TOOL_REQUEST]') > text.lastIndexOf('[END_')) return true;
+  return false;
 }
