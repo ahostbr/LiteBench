@@ -24,6 +24,7 @@ export function createBrowserSession(parentWindow: BrowserWindow): string {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      partition: 'persist:litebench-browser',
     },
   });
 
