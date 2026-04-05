@@ -12,10 +12,16 @@ interface GridLayoutProps {
   renderContent: (panel: WorkspacePanel) => ReactNode;
 }
 
-function getGridTemplate(count: number) {
-  if (count <= 1) return '1fr';
-  if (count <= 4) return 'repeat(2, minmax(0, 1fr))';
-  return 'repeat(3, minmax(0, 1fr))';
+/**
+ * Auto-size grid based on panel count (from LiteImage GridLayout.tsx).
+ * Returns both column and row definitions for even distribution.
+ */
+function getGridStyle(count: number): { gridTemplateColumns: string; gridTemplateRows: string } {
+  if (count <= 1) return { gridTemplateColumns: '1fr', gridTemplateRows: '1fr' };
+  if (count === 2) return { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gridTemplateRows: '1fr' };
+  if (count <= 4) return { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gridTemplateRows: 'repeat(2, minmax(0, 1fr))' };
+  if (count <= 6) return { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gridTemplateRows: 'repeat(2, minmax(0, 1fr))' };
+  return { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gridTemplateRows: 'repeat(3, minmax(0, 1fr))' };
 }
 
 export function GridLayout({
@@ -29,7 +35,7 @@ export function GridLayout({
   return (
     <div
       className="w-full h-full bg-zinc-800"
-      style={{ display: 'grid', gridTemplateColumns: getGridTemplate(panels.length), gap: 1 }}
+      style={{ display: 'grid', ...getGridStyle(panels.length), gap: 1 }}
     >
       {panels.map((panel, index) => (
         <PanelFrame
