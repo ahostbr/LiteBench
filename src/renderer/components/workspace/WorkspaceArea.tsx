@@ -74,7 +74,7 @@ export function WorkspaceArea() {
     }
     for (const [id, el] of contentHostsRef.current) {
       if (!panelIds.has(id)) {
-        el.remove();
+        if (el.parentNode) el.parentNode.removeChild(el);
         contentHostsRef.current.delete(id);
       }
     }

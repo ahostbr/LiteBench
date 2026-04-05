@@ -21,6 +21,13 @@ export function ModelSelector() {
     }
   }, [endpoints, store.selectedEndpointId]);
 
+  // Reset to first endpoint if current one no longer exists (stale endpoint)
+  useEffect(() => {
+    if (store.selectedEndpointId && !endpoints.find(e => e.id === store.selectedEndpointId)) {
+      store.setEndpoint(endpoints.length > 0 ? endpoints[0].id : null);
+    }
+  }, [endpoints, store.selectedEndpointId]);
+
   // Discover models when endpoint changes
   useEffect(() => {
     if (store.selectedEndpointId) {

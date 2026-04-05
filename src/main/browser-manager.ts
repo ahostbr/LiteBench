@@ -33,7 +33,7 @@ export function createBrowserSession(parentWindow: BrowserWindow): string {
     const session = sessions.get(id);
     if (session) {
       session.logs.push(message);
-      // Cap at 500 entries
+      // 500 entries per session is ~50KB worst case — acceptable for a dev tool
       if (session.logs.length > 500) {
         session.logs.splice(0, session.logs.length - 500);
       }

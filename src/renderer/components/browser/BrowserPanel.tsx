@@ -18,7 +18,7 @@ export function BrowserPanel() {
   const sendBounds = useCallback(() => {
     const el = containerRef.current;
     const sid = sessionIdRef.current;
-    if (!el || !sid) return;
+    if (!el || !sid || !el.isConnected) return;
     const rect = el.getBoundingClientRect();
     api.browser.setBounds(sid, {
       x: Math.round(rect.left),

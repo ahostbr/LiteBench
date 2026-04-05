@@ -70,7 +70,7 @@ export function AgentInput({
         }
         if (e.key === 'Tab' || e.key === 'Enter') {
           e.preventDefault();
-          if (filtered[highlightedIndex]) {
+          if (filtered.length > 0 && highlightedIndex < filtered.length && filtered[highlightedIndex]) {
             handleSlashSelect(filtered[highlightedIndex]);
           }
           return;

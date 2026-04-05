@@ -222,7 +222,9 @@ export async function streamAgentChat(
         const xmlResults = await Promise.all(
           xmlToolCallObjects.map(async (tc) => {
             const result = await executeTool(tc.name, tc.arguments);
-            const isError = result.startsWith('Error:') || result.startsWith('Tool error');
+            const isError = result.startsWith('Error: Unknown tool') ||
+                            result.startsWith('Tool error (') ||
+                            result.startsWith('Error: mcp-server directory');
             onEvent({
               type: 'tool_call_done',
               toolCallId: tc.id,
@@ -305,7 +307,9 @@ export async function streamAgentChat(
     const toolResults = await Promise.all(
       toolCallObjects.map(async (tc) => {
         const result = await executeTool(tc.name, tc.arguments);
-        const isError = result.startsWith('Error:') || result.startsWith('Tool error');
+        const isError = result.startsWith('Error: Unknown tool') ||
+                        result.startsWith('Tool error (') ||
+                        result.startsWith('Error: mcp-server directory');
         onEvent({
           type: 'tool_call_done',
           toolCallId: tc.id,
