@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, ExternalLink } from 'lucide-react';
 import { useThemeStore } from '@/stores/theme-store';
 import { THEMES } from '@/lib/themes';
 import { applyThemeToDOM } from '@/lib/accent';
 import { RecommendedModels } from './RecommendedModels';
+
+const APP_VERSION = '1.0.0';
 
 function normalizeHex(color: string) {
   if (!color) return '';
@@ -225,6 +227,42 @@ export function SettingsPanel() {
 
       {/* Recommended Models */}
       <RecommendedModels />
+
+      <div className="border-t border-zinc-800/50" />
+
+      {/* About */}
+      <div className="flex flex-col gap-3">
+        <h3 className="font-display italic text-xl" style={{ color: 'var(--text-primary, #e8e4dc)' }}>About</h3>
+
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-medium" style={{ color: 'var(--text-primary, #e8e4dc)' }}>LiteBench</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-muted, #7a756d)' }}>
+              v{APP_VERSION}
+            </span>
+          </div>
+          <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-muted, #7a756d)' }}>
+            The first benchmark that actually executes tools with local AI models.
+            Real browser navigation, web search, code execution — not just JSON format checking.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2 mt-1">
+          <AboutLink href="https://litesuite.dev/docs/litebench" label="Documentation" />
+          <AboutLink href="https://litesuite.dev" label="Lite AI Suite" />
+          <AboutLink href="https://github.com/ahostbr/LiteBench" label="GitHub Repository" />
+          <AboutLink href="https://github.com/ahostbr/LiteBench/issues" label="Report a Bug" />
+        </div>
+
+        <p className="text-[10px] mt-2" style={{ color: 'var(--text-muted, #7a756d)' }}>
+          Built by Ryan Devlin &middot; MIT License &middot; Part of <a
+            href="https://litesuite.dev"
+            onClick={(e) => { e.preventDefault(); window.open('https://litesuite.dev', '_blank'); }}
+            className="underline hover:opacity-80 transition-opacity cursor-pointer"
+            style={{ color: 'var(--accent, #c9a24d)' }}
+          >Lite AI Suite</a>
+        </p>
+      </div>
     </div>
   );
 }
@@ -274,5 +312,19 @@ function ZoomSlider() {
       />
       <p className="text-[10px]" style={{ color: 'var(--text-muted, #7a756d)' }}>Same as Ctrl+/Ctrl- zoom. Affects all UI elements.</p>
     </section>
+  );
+}
+
+function AboutLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      onClick={(e) => { e.preventDefault(); window.open(href, '_blank'); }}
+      className="flex items-center gap-2 text-[11px] hover:opacity-80 transition-opacity cursor-pointer group"
+      style={{ color: 'var(--text-primary, #e8e4dc)' }}
+    >
+      <ExternalLink className="w-3 h-3 shrink-0" style={{ color: 'var(--accent, #c9a24d)' }} />
+      <span className="group-hover:underline">{label}</span>
+    </a>
   );
 }

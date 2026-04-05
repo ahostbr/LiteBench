@@ -4,7 +4,7 @@
 
 Other benchmarks check if your model generates the right JSON. LiteBench goes further — it runs real browser navigation, web search, code execution, and URL fetching, then scores the full agent loop: call tool, get result, synthesize response.
 
-13 models tested. 6 hit 100%. A 4B model browses Hacker News perfectly. A 752M model scores 87%.
+13 models tested. 7 hit 100%. A 0.8B model scores perfect. A 4B model browses Hacker News flawlessly.
 
 ![LiteBench Overview — Welcome, Terminal, Agent Benchmark, Browser](docs/images/litebench-overview.jpg)
 
@@ -22,7 +22,7 @@ Every existing benchmark for local models either:
 - **Real Tool Execution** — Browser navigation, web search, code sandbox, URL fetching. Not mock calls.
 - **Agent Chat** — Conversational interface with streaming, tool call cards, live results
 - **Embedded Browser** — Watch the agent navigate websites in real time
-- **11 Agent Tools** — web_search, web_fetch, browser_navigate, browser_read_page, browser_click, browser_type, sandbox, youtube, and more
+- **8 Agent Tools** — browser_go, browser_elements, browser_click, browser_type, web_search, web_fetch, sandbox, youtube
 - **Agent Benchmark** — Automated test suite with scoring and leaderboard
 - **Recommended Models** — Tested leaderboard with LM Studio download links
 - **Built-in Terminal** — Run Claude Code CLI to orchestrate testing autonomously
@@ -39,20 +39,19 @@ Every existing benchmark for local models either:
 
 ## Model Leaderboard
 
-Scores from real tool execution — 5 tests: browser navigate, web search, page reading, code sandbox, URL fetch.
+Scores from real tool execution — 5 tests: browser go+read, web search, page reading, code sandbox, URL fetch.
 
 | Model | Params | Score | Notes |
 |-------|--------|-------|-------|
+| **Jackrong 0.8B Opus Distill** | 0.8B | 100% | Sub-1B perfection |
+| **Qwen 3 4B** | 4B | 100% | Best small model — runs on any hardware |
 | **Devstral Small 2** | 24B | 100% | Best overall agent |
 | **Gemma 4 31B Opus Distill** | 31B | 100% | Chain-of-thought reasoning |
-| **Gemma 4 E2B Opus Distill** | ~11B | 100% | Plans before acting |
-| **Gemma 4 31B** | 31B | 100% | Powerful, needs stream cap |
-| **Qwen 3 4B** | 4B | 100% | Best small model — runs on any hardware |
 | **Gemma 4 E4B** | ~4B | 100% | Tiny and perfect |
-| **Gemma 4 26B-A4B** | 26B | 93% | Mixture-of-experts, fast |
+| **Gemma 4 E2B Opus Distill** | ~2B | 100% | Plans before acting |
+| **Gemma 4 31B** | 31B | 100% | Powerful, needs stream cap |
 | **Gemma 3 4B** | 4B | 93% | XML fallback mode |
-| **Qwen 3.5 0.8B Opus Distill** | 752M | 87% | Remarkable for sub-1B |
-| **xLAM 2 1B** | 1B | 80% | Salesforce function-calling specialist |
+| **Qwen 3.5 0.8B** | 0.8B | 80% | Tools correct, responses need work |
 
 ## Quick Start
 
