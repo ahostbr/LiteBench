@@ -6,7 +6,7 @@ Other benchmarks check if your model generates the right JSON. LiteBench goes fu
 
 13 models tested. 6 hit 100%. A 4B model browses Hacker News perfectly. A 752M model scores 87%.
 
-![Agent Chat with tool calls](docs/images/agent-chat-tools.png)
+![LiteBench Overview — Welcome, Terminal, Agent Benchmark, Browser](docs/images/litebench-overview.jpg)
 
 ## Why LiteBench?
 
@@ -29,7 +29,9 @@ Every existing benchmark for local models either:
 - **Text Benchmarks** — 6 suites (Creator, Standard, Speed, Stress, Judgment, Multimodal)
 - **Fully Local** — Your models, your hardware, nothing leaves your machine
 
-![Browser navigation](docs/images/browser-navigate.png)
+![Dashboard — Score trends, recent runs, benchmark configuration](docs/images/litebench-dashboard.jpg)
+
+![Agent Chat — Browser automation results with tool call cards](docs/images/litebench-agent-chat.jpg)
 
 ## Model Leaderboard
 
