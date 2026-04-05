@@ -30,8 +30,6 @@ export interface ToolRegistration {
   executor?: (args: Record<string, unknown>) => Promise<string>;
   /** Human-readable category for UI grouping */
   category: 'search' | 'code' | 'desktop' | 'browser' | 'media';
-  /** Whether this tool requires a feature flag / armed state to be usable */
-  requiresArmed?: boolean;
 }
 
 /**
@@ -50,27 +48,9 @@ class ToolRegistry {
     this.tools.set(name, reg);
   }
 
-  /** All schemas as an array — passed directly to OpenAI chat.completions.create.
-   *  Filters out tools that require arming (e.g. pccontrol) unless they are armed.
-   */
+  /** All schemas as an array — passed directly to OpenAI chat.completions.create. */
   getSchemas(): OpenAI.Chat.ChatCompletionTool[] {
-    return Array.from(this.tools.values())
-      .filter((r) => !r.requiresArmed || this.isArmed(r))
-      .map((r) => r.schema);
-  }
-
-  /** Check if an armed tool is currently authorized */
-  private isArmed(reg: ToolRegistration): boolean {
-    if (!reg.requiresArmed) return true;
-    // For pccontrol: check the armed flag file
-    const name = reg.schema.function.name;
-    if (name === 'pccontrol') {
-      const fs = require('fs');
-      const path = require('path');
-      const flagPath = path.join(process.cwd(), 'mcp-server', 'config', 'pccontrol-armed.flag');
-      try { return fs.existsSync(flagPath); } catch { return false; }
-    }
-    return false;
+    return Array.from(this.tools.values()).map((r) => r.schema);
   }
 
   /** Executor mapping for a single tool name — used by tool-executor.ts */
@@ -282,62 +262,7 @@ toolRegistry.register({
   },
 });
 
-if (process.platform === 'win32') toolRegistry.register({
-  category: 'desktop',
-  module: 'pccontrol',
-  handler: 'handle_pccontrol',
-  requiresArmed: true,
-  schema: {
-    type: 'function',
-    function: {
-      name: 'pccontrol',
-      description:
-        'Control the Windows desktop via PowerShell/Win32 APIs. DANGER: Has full control of the PC when the armed flag is set. Actions: help, status, click, doubleclick, rightclick, type, keypress, launch_app, get_windows. Windows-only.',
-      parameters: {
-        type: 'object',
-        properties: {
-          action: {
-            type: 'string',
-            enum: [
-              'help',
-              'status',
-              'click',
-              'doubleclick',
-              'rightclick',
-              'type',
-              'keypress',
-              'launch_app',
-              'get_windows',
-            ],
-            description: 'Action to perform',
-          },
-          x: {
-            type: 'number',
-            description: 'X coordinate for click actions',
-          },
-          y: {
-            type: 'number',
-            description: 'Y coordinate for click actions',
-          },
-          text: {
-            type: 'string',
-            description: 'Text to type (for type action)',
-          },
-          key: {
-            type: 'string',
-            description:
-              'Key to press (for keypress action): Enter, Tab, Escape, Backspace, Delete, Up, Down, Left, Right, F1-F12, ctrl+c, alt+tab, etc.',
-          },
-          path: {
-            type: 'string',
-            description: 'Application path or name (for launch_app action)',
-          },
-        },
-        required: ['action'],
-      },
-    },
-  },
-});
+// pccontrol removed — was half-finished Kuroryuu port, not needed for benchmarking
 
 // ── Browser session manager ───────────────────────────────────────────────────
 // Browser tools use the SINGLE visible browser session (the Browser panel).

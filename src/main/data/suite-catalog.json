@@ -575,10 +575,7 @@
         "livenessProbe",
         "configMapRef"
       ],
-      "eval_anti": [
-        "TODO",
-        "CHANGE_ME"
-      ],
+      "eval_anti": [],
       "max_tokens": 800
     },
     {

@@ -38,8 +38,8 @@ export function registerBrowserHandlers(): void {
     destroySession(sessionId, win);
   });
 
-  ipcMain.handle('bench:browser:navigate', (_event, sessionId: string, url: string) => {
-    navigateTo(sessionId, url);
+  ipcMain.handle('bench:browser:navigate', async (_event, sessionId: string, url: string) => {
+    return await navigateTo(sessionId, url);
   });
 
   ipcMain.handle('bench:browser:back', (_event, sessionId: string) => {

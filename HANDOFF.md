@@ -1,47 +1,75 @@
-# LiteBench Agent Handoff — Harness Training + Polish
+# LiteBench Agent Handoff — Harness Trained, Models Baselined
 
 ## Context
 
-LiteBench is a standalone Electron + React LLM benchmark studio at `C:/Projects/LiteBench`. Phase 5 is complete — agent chat, browser panel, 11 tools, agent benchmarks. The goal is to demo this to Matt Wolfe (600K YouTube subs) who asked for "an everyday user benchmark for local models."
+LiteBench is a standalone Electron + React LLM benchmark studio at `C:/Projects/LiteBench`. The goal is to demo this to Matt Wolfe (600K YouTube subs) who asked for "an everyday user benchmark for local models."
 
-Everything works end-to-end: Devstral navigates Hacker News in the embedded browser, reads page content, calls web search, executes code in sandbox. Verified via Playwright E2E tests.
+Everything works end-to-end. Harness training is complete — 3 cycles of iterative improvements pushed 6 models to 100% tool reliability.
 
-## What You're Picking Up
+## What Was Done (Training Session 2026-04-04)
 
-### 1. Harness Training — Improve Tool Reliability
+### Harness Training — 3 Cycles
 
-The agent harness (`src/main/engine/agent-harness.ts`) generates model-specific system prompts. Current NinjaJSON discipline: "ONE tool per step, STOP and wait."
+**Cycle 1: Core fixes**
+- `browser_navigate` now awaits `did-finish-load` event (was returning instantly)
+- `browser_read_page` returns clean markdown text (was raw JSON with element bounds)
+- NinjaJSON system prompt rewritten: one-tool-per-message, anti-repetition, browser workflow
+- XML tool call parsing wired into `agent-runner.ts` (parseXMLToolCalls was never called)
+- Result: Devstral 80%→100%, Qwen 3 4B 67%→100%, Gemma 3 4B 0%→80%
 
-**Baseline scores** (from `ai/data/trainer/harness_evolution.jsonl`):
-- Devstral Small 2 (24B): 100% — all tools fire, responses include data
-- Qwen 3 4B: 67% — browser + search work, sandbox fails
-- Gemma 4 31B: untested with latest cap (was generating 600+ tool calls, now capped at 3)
+**Cycle 2: Parser broadening**
+- XML parser handles `[TOOL_REQUEST]...[END_*]` and bare JSON formats
+- Stronger "MUST write response" prompt language
+- Result: Gemma 3 12B 50%→73%, Gemma 3 4B 80%→93%
 
-**What to tune**:
-- Run `npx tsx e2e/train-harness.ts` to evaluate
-- Mutate `buildNativeSystemPrompt()` in `agent-harness.ts`
-- Re-evaluate, keep/revert based on score
-- Use `/train --target litebench-agent` for the autonomous loop
+**Cycle 3: Stream break fix**
+- Gemma 4 31B generated 600+ tool calls, stream never finished → 90s timeout
+- Fix: break stream immediately at `MAX_TOOL_CALLS_PER_TURN` cap instead of silently skipping
+- Result: Gemma 4 31B 18%→100% (one-line fix!)
 
-### 2. Fix Gemma 3 4B (XML Fallback)
+**Small model optimizations:**
+- `isSmallModel()` detection for sub-2B models
+- Compact system prompt with concrete tool-use example
+- Lower temperature (0.3) for small models
+- `tool-executor.ts`: `shell: true` for Python spawn (Windows ENOENT fix)
 
-Gemma 3 4B writes `<tool_call>` XML as text instead of using the native API. It's currently listed in `NATIVE_TOOL_MODEL_PATTERNS` as `gemma-4` — but `gemma-3` doesn't support native tool calling. Fix: remove `gemma-3` pattern or add a specific exclusion. The XML fallback (`buildXMLSystemPrompt`) + `parseXMLToolCalls` already exist but aren't being triggered for Gemma 3.
+### Full Leaderboard
 
-### 3. Recommended Models Feature
+| Model | Params | Score | Notes |
+|-------|--------|-------|-------|
+| Devstral Small 2 | 24B | 100% | Best overall agent |
+| Gemma 4 31B Opus Distill | 31B | 100% | Chain-of-thought reasoning |
+| Gemma 4 E2B Opus Distill | ~11B | 100% | Plans before acting |
+| Gemma 4 31B | 31B | 100% | Needed stream-break fix |
+| Qwen 3 4B | 4B | 100% | Best small model |
+| Gemma 4 26B-A4B | 26B | 93% | Flaky DuckDuckGo only miss |
+| Gemma 3 4B | 4B | 93% | XML fallback path |
+| Qwen 3.5 0.8B Opus Distill | 752M | 87% | Sub-1B ceiling |
+| Gemma 3 12B Uncensored | 12B | 73% | Malformed XML variants |
+| Qwen 3.5 9B Uncensored | 9B | 50% | Broken fine-tune |
 
-Add a curated list of recommended models to the UI. Models that work well with LiteBench's agent tools:
-- **Devstral Small 2** (24B) — best agent performance, 100% tool reliability
-- **Qwen 3 4B** (4B) — decent for basic tasks on limited hardware
-- **Llama 3.1 8B** (8B) — good balance (not yet tested)
-- **Devstral 3B** (3B) — smallest Mistral with tool support (not yet tested)
+### Key Findings
 
-Show in Settings panel or as a banner. Include LM Studio search links.
+1. **Opus distills dominate** — superior behavior (planning, chain-of-thought, clean tool use)
+2. **Qwen 3 4B is the everyday user sweet spot** — 100% at 4B, runs on anything
+3. **Uncensored fine-tunes hurt tool calling** — abliteration strips instruction-following
+4. **Stream breaking is critical** — must cut the stream, not silently skip excess tool calls
+5. **0.8B ceiling at ~87%** — model capacity limit, not harness
 
-### 4. Make Repo Public + DM Matt Wolfe
+## What's Next
 
-GitHub repo: `ahostbr/LiteBench` (currently private)
-- `gh repo edit ahostbr/LiteBench --visibility public`
-- DM Matt Wolfe on Twitter/X with link + demo video
+### Models To Test
+- **Gemma 4 E2B (base)** — Q8 copied to LM Studio from `~/.litesuite/llm/models/`
+- **Gemma 4 E4B** — new size tier, never tested
+- **Qwen 2.5 Omni 7B** — copied to LM Studio
+- **xLAM series (1B/3B/8B)** — Salesforce, purpose-built for function calling, tops BFCL
+- **Hermes 3 (3B/8B)** — NousResearch gold standard
+- **Llama 3.1 8B / 3.2 3B** — Meta native tool calling
+
+### Features To Build
+1. **Recommended Models UI** — curated list with LM Studio download links
+2. **Make repo public** — `gh repo edit ahostbr/LiteBench --visibility public`
+3. **DM Matt Wolfe** with link + demo video
 
 ## Key Architecture
 
@@ -61,48 +89,24 @@ Renderer (React)                     Main Process (Node)
                                     └──────────────────────────┘
 ```
 
-### IPC Channel Pattern
-- Agent chat: `bench:agent:send` → returns `{ conversationId }` → events on `bench:agent:stream:{conversationId}`
-- The `conversationId` is a `crypto.randomUUID()` from the main process, NOT the Zustand conversation ID
-- AgentPanel subscribes AFTER send, using the server-returned ID
-
-### Tool Execution Paths
-- **Python tools** (web_search, web_fetch, youtube, sandbox, pccontrol): `tool-executor.ts` → `python -c "..." < stdin`
-- **Browser tools** (navigate, read_page, click, type, screenshot): direct calls to `browser-manager.ts` functions
-- **Single browser session**: agent uses the visible Browser panel's session, no invisible sessions
-
-### NinjaJSON System Prompt Pattern
-- `supportsNativeToolCalling(modelId)` — checks against `NATIVE_TOOL_MODEL_PATTERNS`
-- Native models: minimal prompt (~200 tokens) + tools via API
-- XML models: verbose prompt (~2000 tokens) with `<tool_call>` format embedded
-- Tool discipline: "ONE tool per step, STOP, read result, decide next"
-- `MAX_TOOL_CALLS_PER_TURN = 3` — hard cap per model turn
-- `MAX_TOOL_ITERATIONS = 5` — max loop iterations
-
 ## Critical Files
 
 | File | Role |
 |------|------|
-| `src/main/engine/agent-harness.ts` | System prompt builder (THE FILE TO TUNE) |
-| `src/main/engine/agent-runner.ts` | Streaming tool-use loop |
-| `src/main/engine/tool-registry.ts` | Tool registration + dispatch |
-| `src/main/engine/tool-executor.ts` | Python subprocess executor (stdin) |
-| `src/main/browser-manager.ts` | WebContentsView session management |
-| `src/main/ipc/agent-handlers.ts` | Agent chat IPC handlers |
-| `src/renderer/components/agent/AgentPanel.tsx` | Chat UI |
-| `src/renderer/components/browser/BrowserPanel.tsx` | Browser UI |
-| `src/renderer/stores/agent-chat-store.ts` | Chat state (Zustand + persist) |
-| `mcp-server/tools/*.py` | Python tool implementations |
-| `.claude/agents/litebench-agent.md` | Agent config for /train |
-| `e2e/train-harness.ts` | Training evaluation script |
-| `e2e/multi-model-baseline.ts` | Multi-model comparison |
+| `src/main/engine/agent-harness.ts` | System prompt builder — native, XML, small model variants |
+| `src/main/engine/agent-runner.ts` | Streaming tool-use loop with stream-break cap |
+| `src/main/engine/tool-registry.ts` | Tool registration + clean text output for browser |
+| `src/main/engine/tool-executor.ts` | Python subprocess executor (stdin, shell:true) |
+| `src/main/browser-manager.ts` | WebContentsView with did-finish-load await |
+| `e2e/train-harness.ts` | Training evaluation script (UI-driven) |
+| `ai/data/trainer/harness_evolution.jsonl` | All baseline data |
 
 ## Don't Forget
 
 - Use **pnpm** (not Bun)
 - Use `python` not `python3` (Windows)
-- DuckDuckGo search uses `ddgs` package (renamed from `duckduckgo-search`)
-- `browser_navigate` uses the VISIBLE browser panel session — no invisible sessions
-- Gemma 4 31B generates 600+ tool calls without the cap — ALWAYS keep MAX_TOOL_CALLS_PER_TURN
-- The polymathic review (Einstein/Newton/Da Vinci/Socrates) findings are in memory — key fix was IPC channel mismatch
-- LiteBench was absorbed into LiteSuite — this standalone is the Matt Wolfe demo vehicle
+- LiteSuite models live at `~/.litesuite/llm/models/` — separate from LM Studio `~/.lmstudio/models/`
+- `browser_navigate` now returns `{url, title}` — awaits page load
+- `MAX_TOOL_CALLS_PER_TURN = 3` — stream BREAKS at this cap, doesn't just skip
+- Gemma 3 models use XML fallback, not native tool calling
+- `isSmallModel()` detects sub-2B and gives compact prompt + low temperature

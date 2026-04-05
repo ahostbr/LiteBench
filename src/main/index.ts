@@ -98,8 +98,6 @@ function createMainWindow(): BrowserWindow {
   });
 
   // Zoom controls
-  const DEFAULT_ZOOM = 100;
-
   function applyZoom(pct: number): void {
     if (!mainWindow) return;
     mainWindow.webContents.setZoomFactor(pct / 100);

@@ -1,8 +1,15 @@
 {
   "name": "litebench",
   "version": "1.0.0",
-  "private": true,
-  "description": "LiteBench desktop app",
+  "private": false,
+  "description": "The first benchmark that actually executes tools with local AI models — real browser navigation, web search, code execution.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ahostbr/LiteBench"
+  },
+  "homepage": "https://github.com/ahostbr/LiteBench",
+  "keywords": ["benchmark", "llm", "local-models", "tool-calling", "agent", "electron", "lm-studio"],
   "main": "./out/main/index.js",
   "author": "Ryan Devlin",
   "packageManager": "pnpm@10.0.0",
