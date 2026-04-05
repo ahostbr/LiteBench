@@ -5,7 +5,7 @@
  * Uses node-pty for real PTY. Broadcasts data to ALL renderer windows
  * via BrowserWindow.getAllWindows() (not event.sender — survives reloads).
  */
-import { ipcMain, BrowserWindow } from 'electron';
+import { ipcMain, BrowserWindow, app } from 'electron';
 import * as os from 'os';
 
 // ── node-pty loading ──────────────────────────────────────────────────────────
@@ -77,7 +77,11 @@ export function registerPtyHandlers(): void {
     const id = `pty-${++counter}-${Date.now()}`;
     const shell = opts?.cmd || (os.platform() === 'win32' ? 'powershell.exe' : 'bash');
     const shellArgs = opts?.args || (os.platform() === 'win32' ? ['-NoLogo'] : []);
-    const cwd = opts?.cwd || os.homedir();
+    // Default cwd to LiteBench root — so Claude Code picks up .claude/skills/
+    const appRoot = app.getAppPath().includes('.asar')
+      ? require('path').dirname(app.getAppPath())
+      : app.getAppPath();
+    const cwd = opts?.cwd || appRoot;
 
     console.log('[PTY] Creating:', { id, shell, cwd });
 
