@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, RotateCw, Globe } from 'lucide-react';
 import { api } from '@/api/client';
 import { cn } from '@/lib/utils';
+import { useWorkspaceStore } from '@/stores/workspace-store';
 
 export function BrowserPanel() {
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -50,6 +51,21 @@ export function BrowserPanel() {
       }
     };
   }, []);
+
+  // Show/hide WebContentsView when switching tabs — native views render above DOM
+  const activePanelId = useWorkspaceStore((s) => s.activePanelId);
+  const panels = useWorkspaceStore((s) => s.panels);
+  const isBrowserActive = panels.some((p) => p.type === 'browser' && p.id === activePanelId);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    if (isBrowserActive) {
+      api.browser.show(sessionId);
+      sendBounds();
+    } else {
+      api.browser.hide(sessionId);
+    }
+  }, [isBrowserActive, sessionId]);
 
   // Track bounds with ResizeObserver + rAF, and sync URL from WebContentsView
   useEffect(() => {
