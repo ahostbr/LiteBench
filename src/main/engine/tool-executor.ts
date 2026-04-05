@@ -10,11 +10,31 @@ import { toolRegistry } from './tool-registry';
  * 2. `where python` via shell
  * 3. Bare `python` fallback
  */
+/**
+ * Cached Python path — shared by tool-executor AND setup-checker.
+ * CRITICAL: Both must use the same Python so pip installs go to the
+ * same environment that tools run on.
+ */
 let _pythonPath: string | null = null;
-function getPythonPath(): string {
+export function getPythonPath(): string {
   if (_pythonPath) return _pythonPath;
 
-  // Strategy 1: Check known Windows install paths
+  // Strategy 1: Ask the shell — this finds the PATH Python where pip installs go.
+  // This MUST be tried first so setup-checker installs and tool-executor runs
+  // use the exact same Python environment.
+  try {
+    const result = execSync('where python', {
+      encoding: 'utf8',
+      shell: true,
+      env: { ...process.env, PATH: process.env.PATH },
+    }).split('\n')[0].trim();
+    if (result && existsSync(result)) {
+      _pythonPath = result;
+      return result;
+    }
+  } catch { /* ignore */ }
+
+  // Strategy 2: Check known Windows install paths (fallback if not on PATH)
   const home = process.env.USERPROFILE || process.env.HOME || '';
   const candidates = [
     path.join(home, 'AppData/Local/Programs/Python/Python315/python.exe'),
@@ -34,19 +54,6 @@ function getPythonPath(): string {
       return p;
     }
   }
-
-  // Strategy 2: Ask the shell
-  try {
-    const result = execSync('where python', {
-      encoding: 'utf8',
-      shell: true,
-      env: { ...process.env, PATH: process.env.PATH },
-    }).split('\n')[0].trim();
-    if (result && existsSync(result)) {
-      _pythonPath = result;
-      return result;
-    }
-  } catch { /* ignore */ }
 
   // Strategy 3: bare name (last resort)
   _pythonPath = 'python';

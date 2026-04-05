@@ -3,8 +3,9 @@
  * These expose tool-registry, agent-harness internals for Playwright to call.
  * No-op in production — only registered when NODE_ENV !== 'production'.
  */
-import { ipcMain } from 'electron';
+import { ipcMain, app } from 'electron';
 import { toolRegistry } from '../engine/tool-registry';
+import { executeTool } from '../engine/tool-executor';
 import { buildSystemPrompt, isSmallModel } from '../engine/agent-harness';
 
 export function registerTestToolsHandlers(): void {
@@ -13,17 +14,12 @@ export function registerTestToolsHandlers(): void {
 
   /**
    * Execute a registered tool directly by name.
-   * Returns the string result from the executor.
+   * Supports both in-process (browser) and Python-based tools.
    */
   ipcMain.handle(
     'test:tool:execute',
     async (_event, toolName: string, args: Record<string, unknown>) => {
-      const exec = toolRegistry.getExecutor(toolName);
-      if (!exec) throw new Error(`Tool not found: ${toolName}`);
-      if ('executor' in exec) {
-        return exec.executor(args);
-      }
-      throw new Error(`Tool ${toolName} is Python-based, use tool-executor instead`);
+      return executeTool(toolName, args);
     },
   );
 

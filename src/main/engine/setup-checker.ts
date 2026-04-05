@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import type { SetupCheckResult } from '../../shared/types';
+import { getPythonPath } from './tool-executor';
 
 function runCommand(
   cmd: string,
@@ -45,14 +46,15 @@ function runCommand(
 export async function checkDependencies(): Promise<SetupCheckResult[]> {
   const results: SetupCheckResult[] = [];
 
-  // Python
+  // Python — use the same path that tool-executor uses
+  const pythonPath = getPythonPath();
   {
-    const { stdout, code } = await runCommand('python', ['--version'], 10_000);
+    const { stdout, code } = await runCommand(pythonPath, ['--version'], 10_000);
     if (code === 0) {
       const version = stdout.trim() || 'unknown';
-      results.push({ component: 'python', installed: true, version });
+      results.push({ component: 'python', installed: true, version: `${version} (${pythonPath})` });
     } else {
-      results.push({ component: 'python', installed: false, error: 'python not found in PATH' });
+      results.push({ component: 'python', installed: false, error: `python not found (tried: ${pythonPath})` });
     }
   }
 
@@ -60,7 +62,7 @@ export async function checkDependencies(): Promise<SetupCheckResult[]> {
   // Use stdin to avoid cmd.exe mangling Python code with semicolons/quotes
   {
     const { code: ddgsCode, stdout: ddgsOut, stderr: ddgsErr } = await runCommand(
-      'python',
+      pythonPath,
       ['-'],
       10_000,
       'import duckduckgo_search\nprint(getattr(duckduckgo_search, "__version__", "installed"))\n',
@@ -80,7 +82,7 @@ export async function checkDependencies(): Promise<SetupCheckResult[]> {
     }
 
     const { code: htmlCode, stderr: htmlErr } = await runCommand(
-      'python',
+      pythonPath,
       ['-'],
       10_000,
       'import html2text\nprint("ok")\n',
@@ -157,6 +159,6 @@ export async function installDependency(name: string): Promise<boolean> {
       return false;
   }
 
-  const { code } = await runCommand('python', args, 60_000);
+  const { code } = await runCommand(getPythonPath(), args, 60_000);
   return code === 0;
 }
