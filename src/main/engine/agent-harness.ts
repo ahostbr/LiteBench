@@ -132,7 +132,7 @@ function buildNativeSystemPrompt(modelId: string, customInstructions?: string): 
     `2. If you need to interact (click a link, fill a form): call browser_elements() to see what's available.`,
     `3. Use browser_click(index) or browser_type(text, index) to interact.`,
     ``,
-    `browser_go replaces the old navigate+read pattern. One call, one result.`,
+    `browser_go is the ONLY way to read a website. One call, one result.`,
     ``,
     `## TOOL SELECTION`,
     `| Task | Tool |`,

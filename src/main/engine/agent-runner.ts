@@ -72,9 +72,8 @@ export async function streamAgentChat(
   setBrowserContextKey(browserKey);
 
   // Build model-specific system prompt with tool instructions
-  // Polymathic consensus: small models get tier-1 tools only (browser_go, not navigate+read)
   const small = isSmallModel(modelId);
-  const toolSchemas = enableTools ? toolRegistry.getSchemas(small) : [];
+  const toolSchemas = enableTools ? toolRegistry.getSchemas() : [];
   const isNativeToolModel = supportsNativeToolCalling(modelId);
   const systemPrompt = buildSystemPrompt(
     modelId,

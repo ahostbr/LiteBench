@@ -24,13 +24,12 @@ export function registerTestToolsHandlers(): void {
   );
 
   /**
-   * Get tool schemas filtered by model size.
-   * Returns array of tool names.
+   * Get all tool schemas. Returns array of tool names.
    */
   ipcMain.handle(
     'test:tool:schemas',
-    async (_event, smallModel?: boolean) => {
-      const schemas = toolRegistry.getSchemas(smallModel);
+    async () => {
+      const schemas = toolRegistry.getSchemas();
       return schemas.map((s) => s.function.name);
     },
   );

@@ -4,10 +4,6 @@ import {
   readPage,
   clickElement,
   typeText,
-  screenshot,
-  executeJS,
-  scrollPage,
-  getConsoleLogs,
   getActiveSessionId,
 } from '../browser-manager';
 
@@ -30,13 +26,6 @@ export interface ToolRegistration {
   executor?: (args: Record<string, unknown>) => Promise<string>;
   /** Human-readable category for UI grouping */
   category: 'search' | 'code' | 'desktop' | 'browser' | 'media';
-  /**
-   * Tool tier for model-size filtering (polymathic consensus).
-   * - 'core': Available to ALL models including sub-2B. These are the essential tools.
-   * - 'advanced': Only available to larger models. Small models get a simpler toolset.
-   * Defaults to 'core' if unset.
-   */
-  tier?: 'core' | 'advanced';
 }
 
 /**
@@ -55,16 +44,9 @@ class ToolRegistry {
     this.tools.set(name, reg);
   }
 
-  /**
-   * All schemas as an array — passed directly to OpenAI chat.completions.create.
-   * When smallModel is true, filters to 'core' tier tools only (polymathic consensus).
-   * Small models (sub-2B) get: browser_go, browser_elements, browser_click, browser_type,
-   * web_search, web_fetch, sandbox, youtube. No advanced browser tools.
-   */
-  getSchemas(smallModel?: boolean): OpenAI.Chat.ChatCompletionTool[] {
-    return Array.from(this.tools.values())
-      .filter((r) => !smallModel || (r.tier ?? 'core') === 'core')
-      .map((r) => r.schema);
+  /** All schemas as an array — passed directly to OpenAI chat.completions.create. */
+  getSchemas(): OpenAI.Chat.ChatCompletionTool[] {
+    return Array.from(this.tools.values()).map((r) => r.schema);
   }
 
   /** Executor mapping for a single tool name — used by tool-executor.ts */
@@ -395,7 +377,6 @@ function formatElementsList(
 
 toolRegistry.register({
   category: 'browser',
-  tier: 'core',
   schema: {
     type: 'function',
     function: {
@@ -425,7 +406,6 @@ toolRegistry.register({
 
 toolRegistry.register({
   category: 'browser',
-  tier: 'core',
   schema: {
     type: 'function',
     function: {
@@ -447,116 +427,24 @@ toolRegistry.register({
   },
 });
 
-// ── Tier 2: Advanced browser tools (large models only) ────────────────────────
+// browser_navigate and browser_read_page REMOVED — replaced by browser_go.
+// Having both confused models into picking the old two-step workflow.
+// One canonical path: browser_go → browser_elements → browser_click/type.
 
 toolRegistry.register({
   category: 'browser',
-  tier: 'advanced',
-  schema: {
-    type: 'function',
-    function: {
-      name: 'browser_navigate',
-      description:
-        'Open a URL in the embedded browser. Creates a browser session if one does not exist. Use before any other browser tools.',
-      parameters: {
-        type: 'object',
-        properties: {
-          url: {
-            type: 'string',
-            description: 'Full URL to navigate to (https://...)',
-          },
-        },
-        required: ['url'],
-      },
-    },
-  },
-  executor: async (args) => {
-    const url = args.url as string;
-    const sessionId = requireBrowserSession();
-    const result = await navigateTo(sessionId, url);
-    return `Page loaded: "${result.title}" at ${result.url}`;
-  },
-});
-
-toolRegistry.register({
-  category: 'browser',
-  tier: 'advanced',
-  schema: {
-    type: 'function',
-    function: {
-      name: 'browser_read_page',
-      description:
-        'Read the current browser page — returns the page title, visible text content, and a list of clickable elements with [index] numbers. Use after browser_navigate to read page content.',
-      parameters: {
-        type: 'object',
-        properties: {},
-        required: [],
-      },
-    },
-  },
-  executor: async () => {
-    const sessionId = requireBrowserSession();
-    const raw = (await readPage(sessionId)) as {
-      url: string;
-      title: string;
-      elements: Array<{ index: number; tag: string; text?: string; href?: string; type?: string; placeholder?: string; role?: string; value?: string; ariaLabel?: string }>;
-      visibleText: string;
-    };
-
-    // Format as clean text that local models can easily parse
-    const lines: string[] = [];
-    lines.push(`# ${raw.title}`);
-    lines.push(`URL: ${raw.url}`);
-    lines.push('');
-
-    // Page text (truncated for model context)
-    const text = raw.visibleText.substring(0, 3000).trim();
-    if (text) {
-      lines.push('## Page Content');
-      lines.push(text);
-      lines.push('');
-    }
-
-    // Interactive elements — simplified, no bounds
-    if (raw.elements.length > 0) {
-      lines.push('## Interactive Elements');
-      for (const el of raw.elements.slice(0, 50)) {
-        const label = el.text || el.ariaLabel || el.placeholder || el.value || '';
-        const short = label.substring(0, 80).replace(/\n/g, ' ').trim();
-        if (el.tag === 'a' && el.href) {
-          lines.push(`[${el.index}] link: "${short}" → ${el.href}`);
-        } else if (el.tag === 'input') {
-          lines.push(`[${el.index}] input(${el.type || 'text'}): ${short || el.placeholder || ''}`);
-        } else if (el.tag === 'button' || el.role === 'button') {
-          lines.push(`[${el.index}] button: "${short}"`);
-        } else {
-          lines.push(`[${el.index}] ${el.tag}: "${short}"`);
-        }
-      }
-      if (raw.elements.length > 50) {
-        lines.push(`... and ${raw.elements.length - 50} more elements (scroll to see more)`);
-      }
-    }
-
-    return lines.join('\n');
-  },
-});
-
-toolRegistry.register({
-  category: 'browser',
-  tier: 'core',
   schema: {
     type: 'function',
     function: {
       name: 'browser_click',
       description:
-        'Click an element on the current browser page by its index from browser_read_page.',
+        'Click an element by its index number from browser_elements.',
       parameters: {
         type: 'object',
         properties: {
           index: {
             type: 'number',
-            description: 'Element index from browser_read_page output',
+            description: 'Element index from browser_elements',
           },
         },
         required: ['index'],
@@ -572,7 +460,6 @@ toolRegistry.register({
 
 toolRegistry.register({
   category: 'browser',
-  tier: 'core',
   schema: {
     type: 'function',
     function: {
@@ -602,117 +489,7 @@ toolRegistry.register({
   },
 });
 
-toolRegistry.register({
-  category: 'browser',
-  tier: 'advanced',
-  schema: {
-    type: 'function',
-    function: {
-      name: 'browser_screenshot',
-      description:
-        'Capture a screenshot of the current browser page. Returns a base64-encoded PNG.',
-      parameters: {
-        type: 'object',
-        properties: {},
-        required: [],
-      },
-    },
-  },
-  executor: async () => {
-    const sessionId = requireBrowserSession();
-    const base64 = await screenshot(sessionId);
-    return `data:image/png;base64,${base64}`;
-  },
-});
-
-toolRegistry.register({
-  category: 'browser',
-  tier: 'advanced',
-  schema: {
-    type: 'function',
-    function: {
-      name: 'browser_execute_js',
-      description:
-        'Execute arbitrary JavaScript in the current browser page and return the result. Use with caution — runs in page context.',
-      parameters: {
-        type: 'object',
-        properties: {
-          code: {
-            type: 'string',
-            description: 'JavaScript expression or statement to execute',
-          },
-        },
-        required: ['code'],
-      },
-    },
-  },
-  executor: async (args) => {
-    const sessionId = requireBrowserSession();
-    const result = await executeJS(sessionId, args.code as string);
-    const str = JSON.stringify(result);
-    // Cap output to prevent huge DOM dumps from hanging the agent
-    if (str.length > 5000) {
-      return str.substring(0, 5000) + `\n... (truncated from ${str.length} chars)`;
-    }
-    return str;
-  },
-});
-
-toolRegistry.register({
-  category: 'browser',
-  tier: 'advanced',
-  schema: {
-    type: 'function',
-    function: {
-      name: 'browser_scroll',
-      description: 'Scroll the current browser page in a direction.',
-      parameters: {
-        type: 'object',
-        properties: {
-          direction: {
-            type: 'string',
-            enum: ['up', 'down', 'left', 'right'],
-            description: 'Scroll direction',
-          },
-          amount: {
-            type: 'number',
-            description: 'Pixels to scroll (default: 300)',
-          },
-        },
-        required: ['direction'],
-      },
-    },
-  },
-  executor: async (args) => {
-    const sessionId = requireBrowserSession();
-    await scrollPage(
-      sessionId,
-      args.direction as 'up' | 'down' | 'left' | 'right',
-      (args.amount as number) ?? 300,
-    );
-    return `Scrolled ${args.direction} by ${(args.amount as number) ?? 300}px`;
-  },
-});
-
-toolRegistry.register({
-  category: 'browser',
-  tier: 'advanced',
-  schema: {
-    type: 'function',
-    function: {
-      name: 'browser_console_logs',
-      description:
-        'Get recent console.log/warn/error messages from the current browser page. Useful for debugging page behavior.',
-      parameters: {
-        type: 'object',
-        properties: {},
-        required: [],
-      },
-    },
-  },
-  executor: async () => {
-    const sessionId = requireBrowserSession();
-    const logs = getConsoleLogs(sessionId);
-    return logs.length > 0 ? logs.join('\n') : '(no console output)';
-  },
-});
+// browser_screenshot, browser_execute_js, browser_scroll, browser_console_logs REMOVED.
+// These confused models (especially Gemma) into dumping HTML via execute_js or looping on scroll.
+// The core 4 browser tools (go, elements, click, type) cover all benchmark use cases.
+// These functions remain available in browser-manager.ts for direct IPC use by the UI.
