@@ -148,6 +148,7 @@ export interface LiteBenchApi {
     getElo(): Promise<EloRating[]>;
     getPresets(): Promise<PresetChallenge[]>;
     judge(battleId: string, winnerId: string): Promise<void>;
+    previewElo(battleId: string, winnerId: string): Promise<{ competitorId: string; delta: number; currentRating: number }[]>;
     onEvent(callback: (event: BattleEvent) => void): () => void;
   };
   browser: {
@@ -294,6 +295,7 @@ const api: LiteBenchApi = {
     getElo: () => ipcRenderer.invoke('bench:arena:get-elo'),
     getPresets: () => ipcRenderer.invoke('bench:arena:get-presets'),
     judge: (battleId, winnerId) => ipcRenderer.invoke('bench:arena:judge', battleId, winnerId),
+    previewElo: (battleId, winnerId) => ipcRenderer.invoke('bench:arena:preview-elo', battleId, winnerId),
     onEvent: (callback) => {
       const handler = (_event: unknown, payload: BattleEvent) => callback(payload);
       ipcRenderer.on('bench:arena:event', handler);

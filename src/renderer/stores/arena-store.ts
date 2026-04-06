@@ -56,6 +56,9 @@ interface ArenaState {
   _handleBattleEvent(event: BattleEvent): void;
 }
 
+// Stores the cleanup function for the current arena event listener
+let _eventUnsubscribe: (() => void) | null = null;
+
 export const useArenaStore = create<ArenaState>((set, get) => ({
   selectedModels: [],
   prompt: '',
@@ -113,8 +116,14 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
 
       set({ activeBattle: battle, competitorStates: initialStates });
 
+      // Clean up previous listener before registering a new one
+      if (_eventUnsubscribe) {
+        _eventUnsubscribe();
+        _eventUnsubscribe = null;
+      }
+
       // Register event listener
-      api.arena.onEvent((event: BattleEvent) => {
+      _eventUnsubscribe = api.arena.onEvent((event: BattleEvent) => {
         get()._handleBattleEvent(event);
       });
     } catch (err) {
@@ -186,6 +195,10 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
   },
 
   resetToConfig() {
+    if (_eventUnsubscribe) {
+      _eventUnsubscribe();
+      _eventUnsubscribe = null;
+    }
     set({
       activeBattle: null,
       phase: 'configuring',

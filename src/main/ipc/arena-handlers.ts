@@ -12,6 +12,7 @@ import {
   getEloRatings,
   getPresets,
 } from '../db/battles-db';
+import { previewEloDeltas, makeModelKey } from '../engine/elo-system';
 
 function emitBattleEvent(sender: WebContents, event: BattleEvent): void {
   if (!sender.isDestroyed()) {
@@ -125,6 +126,34 @@ export function registerArenaHandlers(): void {
       }));
 
       recordJudgment(battleId, orderedIds, orderedPairs, false);
+    },
+  );
+
+  // Preview ELO deltas without persisting — used by JudgingPanel
+  ipcMain.handle(
+    'bench:arena:preview-elo',
+    (
+      _event,
+      battleId: string,
+      winnerId: string,
+    ): { competitorId: string; delta: number; currentRating: number }[] => {
+      const battle = getBattle(battleId);
+      if (!battle) return [];
+
+      const winner = battle.competitors.find((c) => c.id === winnerId);
+      if (!winner) return [];
+
+      const others = battle.competitors.filter((c) => c.id !== winnerId);
+      const ordered = [winner, ...others];
+
+      const modelKeys = ordered.map((c) => makeModelKey(c.endpointId, c.modelId));
+      const deltas = previewEloDeltas(modelKeys);
+
+      return ordered.map((c, i) => ({
+        competitorId: c.id,
+        delta: deltas[i]?.delta ?? 0,
+        currentRating: deltas[i]?.currentRating ?? 1500,
+      }));
     },
   );
 }

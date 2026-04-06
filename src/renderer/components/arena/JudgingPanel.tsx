@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Trophy, CheckCircle2, X, Maximize2, Minimize2 } from 'lucide-react';
 import { useArenaStore } from '@/stores/arena-store';
+import { api } from '@/api/client';
 import { cn } from '@/lib/utils';
 import type { BattleCompetitor, MetricResult } from '../../../shared/types';
 
@@ -207,15 +208,37 @@ export function JudgingPanel({ readOnly = false }: JudgingPanelProps) {
   const competitors = activeBattle.competitors;
   const isFinalized = !!activeBattle.winnerId;
 
-  // Compute ELO deltas (shown as preview before confirming, or actual after)
-  const K = 32;
+  // Real ELO delta preview via IPC — uses actual ratings from the DB
+  const [eloDeltas, setEloDeltas] = useState<Map<string, number>>(new Map());
+  const lastPreviewRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const winnerId = activeBattle?.winnerId ?? pendingWinnerId;
+    if (!winnerId || !activeBattle) {
+      setEloDeltas(new Map());
+      lastPreviewRef.current = null;
+      return;
+    }
+    // Avoid re-fetching for the same winner pick
+    if (lastPreviewRef.current === winnerId) return;
+    lastPreviewRef.current = winnerId;
+
+    api.arena.previewElo(activeBattle.id, winnerId).then((results) => {
+      const map = new Map<string, number>();
+      for (const r of results) {
+        map.set(r.competitorId, r.delta);
+      }
+      setEloDeltas(map);
+    }).catch(() => {
+      // Non-fatal — just won't show preview
+      setEloDeltas(new Map());
+    });
+  }, [activeBattle, pendingWinnerId]);
+
   const getEloDelta = (competitorId: string): number | undefined => {
-    const winnerId = activeBattle.winnerId ?? pendingWinnerId;
+    const winnerId = activeBattle?.winnerId ?? pendingWinnerId;
     if (!winnerId) return undefined;
-    const isWinner = competitorId === winnerId;
-    const totalOpponents = competitors.length - 1;
-    // Simplified pairwise ELO: assume all rated 1500
-    return Math.round(isWinner ? K * (1 - 0.5) * totalOpponents : K * (0 - 0.5) * (1 / totalOpponents || 1));
+    return eloDeltas.get(competitorId);
   };
 
   return (

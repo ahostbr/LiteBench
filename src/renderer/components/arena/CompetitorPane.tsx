@@ -142,10 +142,8 @@ export function CompetitorPane({ competitor, state, battleId, index }: Competito
   const modelLabel = competitor.modelId.split('/').pop() ?? competitor.modelId;
   const isDnf = state.status === 'dnf' || state.status === 'failed';
 
-  const previewSrc = state.previewUrl
-    ?? (state.filesWritten.includes('index.html')
-      ? `file:///battles/${battleId}/competitor-${index}/index.html`
-      : null);
+  // previewUrl is set by the file_written event with the full absolute path
+  const previewSrc = state.previewUrl ?? null;
 
   return (
     <div

@@ -3,6 +3,7 @@ import {
   getEloRating,
   updateElo,
   getEloRatings,
+  incrementBattleCount,
 } from '../db/battles-db';
 
 const K_FACTOR = 32;
@@ -64,6 +65,31 @@ export function applyEloUpdate(
 }
 
 /**
+ * Same as applyEloUpdate but skips battle_count increment.
+ * Used by applyMultiCompetitorElo which does a single increment per model at the end.
+ */
+function applyEloUpdateNoBattleCount(
+  winnerKey: string,
+  loserKey: string,
+  isDraw = false,
+): EloUpdateResult {
+  const winnerBefore = getEloRating(winnerKey);
+  const loserBefore = getEloRating(loserKey);
+
+  const { winnerDelta, loserDelta } = updateElo(winnerKey, loserKey, isDraw, false);
+
+  return {
+    winnerKey,
+    loserKey,
+    winnerDelta,
+    loserDelta,
+    winnerNewRating: Math.round(winnerBefore.rating + winnerDelta),
+    loserNewRating: Math.round(loserBefore.rating + loserDelta),
+    isDraw,
+  };
+}
+
+/**
  * Handle a multi-competitor battle result via round-robin pairwise ELO.
  *
  * competitorKeys is ordered by placement (index 0 = 1st, index 1 = 2nd, etc.).
@@ -82,27 +108,37 @@ export function applyMultiCompetitorElo(
   const results: EloUpdateResult[] = [];
 
   if (isDraw) {
-    // All competitors draw with each other — pairwise
+    // All competitors draw with each other — pairwise (skip per-pair battle_count)
     for (let i = 0; i < competitorKeys.length; i++) {
       for (let j = i + 1; j < competitorKeys.length; j++) {
-        const result = applyEloUpdate(competitorKeys[i], competitorKeys[j], true);
+        const result = applyEloUpdateNoBattleCount(competitorKeys[i], competitorKeys[j], true);
         results.push(result);
       }
+    }
+    // Increment battle_count once per model
+    for (const key of competitorKeys) {
+      incrementBattleCount(key);
     }
     return results;
   }
 
-  // Non-draw: winner (index 0) beats everyone
+  // Non-draw: winner (index 0) beats everyone (skip per-pair battle_count)
   const winner = competitorKeys[0];
   for (let i = 1; i < competitorKeys.length; i++) {
-    const result = applyEloUpdate(winner, competitorKeys[i]);
+    const result = applyEloUpdateNoBattleCount(winner, competitorKeys[i]);
     results.push(result);
   }
 
   // Adjacent pairs: 2nd vs 3rd, 3rd vs 4th, etc.
   for (let i = 1; i < competitorKeys.length - 1; i++) {
-    const result = applyEloUpdate(competitorKeys[i], competitorKeys[i + 1]);
+    const result = applyEloUpdateNoBattleCount(competitorKeys[i], competitorKeys[i + 1]);
     results.push(result);
+  }
+
+  // Increment battle_count once per unique model
+  const uniqueKeys = new Set(competitorKeys);
+  for (const key of uniqueKeys) {
+    incrementBattleCount(key);
   }
 
   return results;

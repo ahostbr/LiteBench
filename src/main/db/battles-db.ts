@@ -421,6 +421,7 @@ export function updateElo(
   winnerKey: string,
   loserKey: string,
   isDraw = false,
+  incrementBattleCount = true,
 ): { winnerDelta: number; loserDelta: number } {
   const db = ensureDb();
   const K = 32;
@@ -438,20 +439,31 @@ export function updateElo(
   const loserDelta = Math.round(K * (actualLoser - expectedLoser));
 
   const now = getNowIso();
+  const battleCountIncrement = incrementBattleCount ? 1 : 0;
 
   db.prepare(
     `UPDATE elo_ratings
-     SET rating = rating + ?, wins = wins + ?, draws = draws + ?, battle_count = battle_count + 1, last_updated = ?
+     SET rating = rating + ?, wins = wins + ?, draws = draws + ?, battle_count = battle_count + ?, last_updated = ?
      WHERE model_key = ?`,
-  ).run(winnerDelta, isDraw ? 0 : 1, isDraw ? 1 : 0, now, winnerKey);
+  ).run(winnerDelta, isDraw ? 0 : 1, isDraw ? 1 : 0, battleCountIncrement, now, winnerKey);
 
   db.prepare(
     `UPDATE elo_ratings
-     SET rating = rating + ?, losses = losses + ?, draws = draws + ?, battle_count = battle_count + 1, last_updated = ?
+     SET rating = rating + ?, losses = losses + ?, draws = draws + ?, battle_count = battle_count + ?, last_updated = ?
      WHERE model_key = ?`,
-  ).run(loserDelta, isDraw ? 0 : 1, isDraw ? 1 : 0, now, loserKey);
+  ).run(loserDelta, isDraw ? 0 : 1, isDraw ? 1 : 0, battleCountIncrement, now, loserKey);
 
   return { winnerDelta, loserDelta };
+}
+
+/** Increment battle_count by 1 for a single model key. */
+export function incrementBattleCount(modelKey: string): void {
+  const db = ensureDb();
+  // Ensure the model row exists
+  getEloRating(modelKey);
+  db.prepare(
+    `UPDATE elo_ratings SET battle_count = battle_count + 1, last_updated = ? WHERE model_key = ?`,
+  ).run(getNowIso(), modelKey);
 }
 
 // --- Gallery ---

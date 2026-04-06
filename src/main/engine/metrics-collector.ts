@@ -6,6 +6,32 @@ import type { MetricResult } from '../../shared/types';
 import type { Endpoint } from '../../shared/types';
 import OpenAI from 'openai';
 
+// ── BrowserWindow concurrency limiter ────────────────────────────────────────
+// Caps simultaneous hidden BrowserWindow instances to prevent OOM with many competitors.
+
+const MAX_CONCURRENT_WINDOWS = 4;
+let _activeWindows = 0;
+const _windowQueue: Array<() => void> = [];
+
+function acquireWindowSlot(): Promise<void> {
+  if (_activeWindows < MAX_CONCURRENT_WINDOWS) {
+    _activeWindows++;
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    _windowQueue.push(() => {
+      _activeWindows++;
+      resolve();
+    });
+  });
+}
+
+function releaseWindowSlot(): void {
+  _activeWindows--;
+  const next = _windowQueue.shift();
+  if (next) next();
+}
+
 // ── HTML Validity ─────────────────────────────────────────────────────────────
 
 function scoreHtmlValidity(html: string): MetricResult {
@@ -68,6 +94,7 @@ function scoreHtmlValidity(html: string): MetricResult {
 async function scoreRenderErrors(htmlPath: string): Promise<MetricResult> {
   const consoleErrors: string[] = [];
 
+  await acquireWindowSlot();
   try {
     const win = new BrowserWindow({
       show: false,
@@ -110,6 +137,7 @@ async function scoreRenderErrors(htmlPath: string): Promise<MetricResult> {
 
     win.destroy();
   } catch {
+    releaseWindowSlot();
     // If render fails entirely, it's a serious error
     return {
       name: 'Renders Without Errors',
@@ -118,6 +146,7 @@ async function scoreRenderErrors(htmlPath: string): Promise<MetricResult> {
       details: 'Failed to load in browser',
     };
   }
+  releaseWindowSlot();
 
   const penaltyPerError = 20;
   const score = Math.max(0, 100 - consoleErrors.length * penaltyPerError);
@@ -144,6 +173,7 @@ async function scoreResponsive(htmlPath: string): Promise<MetricResult> {
   const overflows: string[] = [];
 
   for (const vp of viewports) {
+    await acquireWindowSlot();
     try {
       const win = new BrowserWindow({
         show: false,
@@ -190,7 +220,9 @@ async function scoreResponsive(htmlPath: string): Promise<MetricResult> {
       }
 
       win.destroy();
+      releaseWindowSlot();
     } catch {
+      releaseWindowSlot();
       overflows.push(`${vp.name} (failed to test)`);
     }
   }

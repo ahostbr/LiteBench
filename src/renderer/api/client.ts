@@ -80,6 +80,8 @@ export const api = {
     getPresets: () => window.liteBench.arena.getPresets(),
     judge: (battleId: string, winnerId: string) =>
       window.liteBench.arena.judge(battleId, winnerId),
+    previewElo: (battleId: string, winnerId: string) =>
+      window.liteBench.arena.previewElo(battleId, winnerId),
     onEvent: (callback: Parameters<typeof window.liteBench.arena.onEvent>[0]) =>
       window.liteBench.arena.onEvent(callback),
   },

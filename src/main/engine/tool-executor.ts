@@ -157,7 +157,7 @@ async function runPython(
  * Never throws — returns an error string so the model can adapt.
  * Args are passed via stdin to eliminate any injection surface.
  */
-export async function executeTool(name: string, args: Record<string, unknown>): Promise<string> {
+export async function executeTool(name: string, args: Record<string, unknown>, contextKey?: string): Promise<string> {
   const tool = toolRegistry.getExecutor(name);
   if (!tool) {
     return `Error: Unknown tool '${name}'. Available tools: ${toolRegistry.getToolNames().join(', ')}`;
@@ -166,7 +166,9 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
   // In-process path (e.g. browser tools wired via IPC)
   if ('executor' in tool) {
     try {
-      return await tool.executor(args);
+      // Inject contextKey so write_file (and future tools) can resolve per-run state
+      const enrichedArgs = contextKey ? { ...args, _contextKey: contextKey } : args;
+      return await tool.executor(enrichedArgs);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return `Tool error (${name}): ${msg}`;

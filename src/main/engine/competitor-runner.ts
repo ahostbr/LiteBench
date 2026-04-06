@@ -50,10 +50,8 @@ export async function runCompetitor(config: CompetitorRunConfig): Promise<'compl
   } = config;
 
   // Set the output dir context so write_file tool writes to the right location.
-  // NOTE: _activeWriteFileKey is a global singleton — parallel competitors in the
-  // same battle can race if two write_file calls overlap at an async boundary.
-  // In practice, local models generate slowly so this is rarely an issue for V1.
-  // TODO: thread contextKey through executeTool() to fully fix this.
+  // contextKey is threaded through streamAgentChat → executeTool → write_file executor
+  // so parallel competitors each resolve their own output directory.
   setWriteFileContext(`arena-${competitorId}`, outputDir);
 
   try {
@@ -87,15 +85,23 @@ export async function runCompetitor(config: CompetitorRunConfig): Promise<'compl
 
           case 'tool_call_start':
             onEvent({ type: 'tool_call', competitorId, toolCall: event.toolCall });
-            // Emit file_written immediately when write_file is called
-            if (event.toolCall.name === 'write_file') {
-              const filename = event.toolCall.arguments?.filename as string ?? 'unknown';
-              onEvent({
-                type: 'file_written',
-                competitorId,
-                filename,
-                path: join(outputDir, filename),
-              });
+            break;
+
+          case 'tool_call_done':
+            // Emit file_written AFTER the tool has executed and the file exists on disk
+            if (event.result && typeof event.result === 'string' && event.result.startsWith('File written:')) {
+              // Parse the filename from the result — format: "File written: <path> (<size> bytes)"
+              const match = event.result.match(/^File written: (.+?) \(/);
+              if (match) {
+                const writtenPath = match[1];
+                const filename = writtenPath.split(/[/\\]/).pop() ?? 'unknown';
+                onEvent({
+                  type: 'file_written',
+                  competitorId,
+                  filename,
+                  path: writtenPath,
+                });
+              }
             }
             break;
 
@@ -104,7 +110,6 @@ export async function runCompetitor(config: CompetitorRunConfig): Promise<'compl
             break;
 
           case 'done':
-          case 'tool_call_done':
             break;
         }
       },

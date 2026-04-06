@@ -268,22 +268,20 @@ toolRegistry.register({
 // cleared after. Keyed by context key (same pattern as browser sessions).
 
 const writeFileOutputDirs = new Map<string, string>();
-let _activeWriteFileKey = '';
 
 /** Set by CompetitorRunner before starting an agent run. */
 export function setWriteFileContext(key: string, outputDir: string): void {
   writeFileOutputDirs.set(key, outputDir);
-  _activeWriteFileKey = key;
 }
 
 /** Called by CompetitorRunner after completion to release the dir. */
 export function clearWriteFileContext(key: string): void {
   writeFileOutputDirs.delete(key);
-  if (_activeWriteFileKey === key) _activeWriteFileKey = '';
 }
 
-function getActiveOutputDir(): string | undefined {
-  return writeFileOutputDirs.get(_activeWriteFileKey);
+/** Look up output dir by context key — called by the write_file executor. */
+export function getOutputDirForContext(contextKey: string): string | undefined {
+  return writeFileOutputDirs.get(contextKey);
 }
 
 const ALLOWED_EXTENSIONS = new Set(['.html', '.css', '.js', '.svg', '.json', '.png', '.ico', '.txt']);
@@ -428,6 +426,7 @@ toolRegistry.register({
   executor: async (args) => {
     const filename = args.filename as string;
     const content = args.content as string;
+    const contextKey = args._contextKey as string | undefined;
 
     if (!filename || typeof filename !== 'string') {
       return 'Error: filename is required';
@@ -443,7 +442,7 @@ toolRegistry.register({
       return `Error: file extension "${ext}" is not allowed. Allowed: ${Array.from(ALLOWED_EXTENSIONS).join(', ')}`;
     }
 
-    const outputDir = getActiveOutputDir();
+    const outputDir = contextKey ? getOutputDirForContext(contextKey) : undefined;
     if (!outputDir) {
       return 'Error: no output directory configured. write_file is only available during Arena battles.';
     }
