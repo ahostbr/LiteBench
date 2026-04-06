@@ -4,6 +4,7 @@ import {
   updateElo,
   getEloRatings,
   incrementBattleCount,
+  applyEloDelta,
 } from '../db/battles-db';
 
 const K_FACTOR = 32;
@@ -65,36 +66,14 @@ export function applyEloUpdate(
 }
 
 /**
- * Same as applyEloUpdate but skips battle_count increment.
- * Used by applyMultiCompetitorElo which does a single increment per model at the end.
- */
-function applyEloUpdateNoBattleCount(
-  winnerKey: string,
-  loserKey: string,
-  isDraw = false,
-): EloUpdateResult {
-  const winnerBefore = getEloRating(winnerKey);
-  const loserBefore = getEloRating(loserKey);
-
-  const { winnerDelta, loserDelta } = updateElo(winnerKey, loserKey, isDraw, false);
-
-  return {
-    winnerKey,
-    loserKey,
-    winnerDelta,
-    loserDelta,
-    winnerNewRating: Math.round(winnerBefore.rating + winnerDelta),
-    loserNewRating: Math.round(loserBefore.rating + loserDelta),
-    isDraw,
-  };
-}
-
-/**
  * Handle a multi-competitor battle result via round-robin pairwise ELO.
+ *
+ * Snapshots all ratings at the start so pairwise expected-score calculations
+ * use the same baseline (matches previewEloDeltas behavior). Only writes
+ * accumulated deltas to the DB once at the end.
  *
  * competitorKeys is ordered by placement (index 0 = 1st, index 1 = 2nd, etc.).
  * Winner (index 0) plays against all others. Adjacent pairs play each other.
- * This avoids excessive ELO swings from a single battle.
  *
  * For a 2-competitor battle: just one matchup.
  * For N competitors: winner vs all, plus adjacent-pair matchups.
@@ -105,40 +84,81 @@ export function applyMultiCompetitorElo(
 ): EloUpdateResult[] {
   if (competitorKeys.length < 2) return [];
 
+  // Snapshot all ratings BEFORE any computation
+  const snapshot = new Map<string, number>();
+  for (const key of competitorKeys) {
+    snapshot.set(key, getEloRating(key).rating);
+  }
+
+  // Accumulate deltas per model key
+  const deltaMap = new Map<string, number>();
+  const winsMap = new Map<string, number>();
+  const lossesMap = new Map<string, number>();
+  const drawsMap = new Map<string, number>();
+  for (const key of competitorKeys) {
+    deltaMap.set(key, 0);
+    winsMap.set(key, 0);
+    lossesMap.set(key, 0);
+    drawsMap.set(key, 0);
+  }
+
   const results: EloUpdateResult[] = [];
 
+  const addPair = (winnerKey: string, loserKey: string, pairIsDraw: boolean) => {
+    const winnerRating = snapshot.get(winnerKey)!;
+    const loserRating = snapshot.get(loserKey)!;
+    const { winnerDelta, loserDelta } = computeEloDelta(winnerRating, loserRating, pairIsDraw);
+
+    deltaMap.set(winnerKey, (deltaMap.get(winnerKey) ?? 0) + winnerDelta);
+    deltaMap.set(loserKey, (deltaMap.get(loserKey) ?? 0) + loserDelta);
+
+    if (pairIsDraw) {
+      drawsMap.set(winnerKey, (drawsMap.get(winnerKey) ?? 0) + 1);
+      drawsMap.set(loserKey, (drawsMap.get(loserKey) ?? 0) + 1);
+    } else {
+      winsMap.set(winnerKey, (winsMap.get(winnerKey) ?? 0) + 1);
+      lossesMap.set(loserKey, (lossesMap.get(loserKey) ?? 0) + 1);
+    }
+
+    results.push({
+      winnerKey,
+      loserKey,
+      winnerDelta,
+      loserDelta,
+      winnerNewRating: Math.round(winnerRating + winnerDelta),
+      loserNewRating: Math.round(loserRating + loserDelta),
+      isDraw: pairIsDraw,
+    });
+  };
+
   if (isDraw) {
-    // All competitors draw with each other — pairwise (skip per-pair battle_count)
+    // All competitors draw with each other — pairwise
     for (let i = 0; i < competitorKeys.length; i++) {
       for (let j = i + 1; j < competitorKeys.length; j++) {
-        const result = applyEloUpdateNoBattleCount(competitorKeys[i], competitorKeys[j], true);
-        results.push(result);
+        addPair(competitorKeys[i], competitorKeys[j], true);
       }
     }
-    // Increment battle_count once per model
-    for (const key of competitorKeys) {
-      incrementBattleCount(key);
+  } else {
+    // Non-draw: winner (index 0) beats everyone
+    const winner = competitorKeys[0];
+    for (let i = 1; i < competitorKeys.length; i++) {
+      addPair(winner, competitorKeys[i], false);
     }
-    return results;
+
+    // Adjacent pairs: 2nd vs 3rd, 3rd vs 4th, etc.
+    for (let i = 1; i < competitorKeys.length - 1; i++) {
+      addPair(competitorKeys[i], competitorKeys[i + 1], false);
+    }
   }
 
-  // Non-draw: winner (index 0) beats everyone (skip per-pair battle_count)
-  const winner = competitorKeys[0];
-  for (let i = 1; i < competitorKeys.length; i++) {
-    const result = applyEloUpdateNoBattleCount(winner, competitorKeys[i]);
-    results.push(result);
-  }
-
-  // Adjacent pairs: 2nd vs 3rd, 3rd vs 4th, etc.
-  for (let i = 1; i < competitorKeys.length - 1; i++) {
-    const result = applyEloUpdateNoBattleCount(competitorKeys[i], competitorKeys[i + 1]);
-    results.push(result);
-  }
-
-  // Increment battle_count once per unique model
+  // Write accumulated deltas to DB in one pass (one write per model, battle_count +1)
   const uniqueKeys = new Set(competitorKeys);
   for (const key of uniqueKeys) {
-    incrementBattleCount(key);
+    applyEloDelta(key, deltaMap.get(key) ?? 0, {
+      wins: winsMap.get(key) ?? 0,
+      losses: lossesMap.get(key) ?? 0,
+      draws: drawsMap.get(key) ?? 0,
+    });
   }
 
   return results;

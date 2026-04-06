@@ -208,8 +208,9 @@ export async function startBattle(
       const metrics = await collectMetrics(r.outputDir, metricsConfig);
       saveScores(r.competitorId, metrics);
 
-      // Composite score is for display — actual metric data is in scores table
-      computeCompositeScore(metrics); // score available via getScoresForCompetitor()
+      // Persist composite score on the competitor row for display/sorting
+      const compositeScore = computeCompositeScore(metrics);
+      updateCompetitor(r.competitorId, { score: compositeScore });
 
       onEvent({ type: 'metrics_ready', competitorId: r.competitorId, metrics });
     }),

@@ -4,13 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { cn } from '@/lib/utils';
 import type { BattleCompetitor, CompetitorStatus } from '../../../shared/types';
-
-interface CompetitorState {
-  status: CompetitorStatus;
-  terminalLog: string;
-  filesWritten: string[];
-  previewUrl?: string;
-}
+import type { CompetitorState } from '@/stores/arena-store';
 
 interface CompetitorPaneProps {
   competitor: BattleCompetitor;

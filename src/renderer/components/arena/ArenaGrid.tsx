@@ -1,12 +1,6 @@
 import type { BattleCompetitor } from '../../../shared/types';
+import type { CompetitorState } from '@/stores/arena-store';
 import { CompetitorPane } from './CompetitorPane';
-
-interface CompetitorState {
-  status: import('../../../shared/types').CompetitorStatus;
-  terminalLog: string;
-  filesWritten: string[];
-  previewUrl?: string;
-}
 
 interface ArenaGridProps {
   battleId: string;

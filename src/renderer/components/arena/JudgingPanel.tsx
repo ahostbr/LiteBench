@@ -3,7 +3,7 @@ import { Trophy, CheckCircle2, X, Maximize2, Minimize2 } from 'lucide-react';
 import { useArenaStore } from '@/stores/arena-store';
 import { api } from '@/api/client';
 import { cn } from '@/lib/utils';
-import type { BattleCompetitor, MetricResult } from '../../../shared/types';
+import type { Battle, BattleCompetitor, MetricResult } from '../../../shared/types';
 
 const METRIC_COLORS: Record<string, string> = {
   validity: 'bg-blue-500',
@@ -193,10 +193,13 @@ function CompetitorPreview({
 
 interface JudgingPanelProps {
   readOnly?: boolean;
+  /** When provided, renders this battle directly instead of reading from the store. */
+  battle?: Battle;
 }
 
-export function JudgingPanel({ readOnly = false }: JudgingPanelProps) {
-  const activeBattle = useArenaStore((s) => s.activeBattle);
+export function JudgingPanel({ readOnly = false, battle: battleProp }: JudgingPanelProps) {
+  const storeActiveBattle = useArenaStore((s) => s.activeBattle);
+  const activeBattle = battleProp ?? storeActiveBattle;
   const competitorStates = useArenaStore((s) => s.competitorStates);
   const pendingWinnerId = useArenaStore((s) => s.pendingWinnerId);
   const pickWinner = useArenaStore((s) => s.pickWinner);

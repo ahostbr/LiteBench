@@ -10,7 +10,7 @@ import type {
   MetricResult,
 } from '../../shared/types';
 
-interface CompetitorState {
+export interface CompetitorState {
   status: CompetitorStatus;
   terminalLog: string;
   filesWritten: string[];
@@ -89,7 +89,7 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
   },
 
   selectPreset(preset) {
-    set({ prompt: preset.description, presetId: preset.id });
+    set({ prompt: preset.systemPromptAddendum || preset.description, presetId: preset.id });
   },
 
   async startBattle() {

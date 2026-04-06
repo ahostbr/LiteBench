@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Trophy, Calendar, Users, ChevronRight, ImageOff } from 'lucide-react';
 import { useArenaStore } from '@/stores/arena-store';
-import { cn } from '@/lib/utils';
 import type { Battle } from '../../../shared/types';
 import { JudgingPanel } from './JudgingPanel';
 
@@ -128,20 +127,8 @@ export function GalleryView() {
   );
 }
 
-// Read-only battle detail view — injects the selected battle into the store temporarily
+// Read-only battle detail view — passes the battle as a prop instead of hijacking the store
 function BattleDetailView({ battle, onClose }: { battle: Battle; onClose: () => void }) {
-  const setActiveBattle = (b: Battle) => {
-    useArenaStore.setState({ activeBattle: b, phase: b.phase });
-  };
-
-  useEffect(() => {
-    setActiveBattle(battle);
-    return () => {
-      // Restore null when unmounting
-      useArenaStore.setState({ activeBattle: null });
-    };
-  }, [battle.id]);
-
   return (
     <div className="h-full flex flex-col">
       <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-zinc-800">
@@ -155,7 +142,7 @@ function BattleDetailView({ battle, onClose }: { battle: Battle; onClose: () => 
         <span className="text-xs text-zinc-400 truncate">{battle.prompt.slice(0, 50)}</span>
       </div>
       <div className="flex-1 min-h-0">
-        <JudgingPanel readOnly />
+        <JudgingPanel readOnly battle={battle} />
       </div>
     </div>
   );

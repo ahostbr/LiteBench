@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS competitors (
     output_dir TEXT NOT NULL,
     start_time TEXT,
     end_time TEXT,
-    terminal_log TEXT
+    terminal_log TEXT,
+    score REAL
 );
 
 CREATE TABLE IF NOT EXISTS scores (
@@ -152,6 +153,12 @@ export function initBattlesDb(): void {
   battlesDb.pragma('journal_mode = WAL');
   battlesDb.pragma('foreign_keys = ON');
   battlesDb.exec(SCHEMA);
+  // Migrate: add score column to competitors if missing (existing DBs)
+  try {
+    battlesDb.exec('ALTER TABLE competitors ADD COLUMN score REAL');
+  } catch {
+    // Column already exists — ignore
+  }
   seedPresets();
 }
 
@@ -188,6 +195,7 @@ function rowToCompetitor(row: SqlRow): BattleCompetitor {
     outputDir: String(row.output_dir),
     startTime: row.start_time ? String(row.start_time) : undefined,
     endTime: row.end_time ? String(row.end_time) : undefined,
+    score: row.score != null ? Number(row.score) : undefined,
   };
 }
 
@@ -308,6 +316,7 @@ export function updateCompetitor(
     startTime?: string;
     endTime?: string;
     terminalLog?: string;
+    score?: number;
   },
 ): void {
   const db = ensureDb();
@@ -329,6 +338,10 @@ export function updateCompetitor(
   if (updates.terminalLog !== undefined) {
     sets.push('terminal_log = ?');
     values.push(updates.terminalLog);
+  }
+  if (updates.score !== undefined) {
+    sets.push('score = ?');
+    values.push(updates.score);
   }
 
   if (sets.length === 0) return;
@@ -354,7 +367,10 @@ export function saveScores(competitorId: string, metrics: MetricResult[]): void 
      VALUES (?, ?, ?, ?, ?, ?)`,
   );
 
+  const deleteExisting = db.prepare('DELETE FROM scores WHERE competitor_id = ?');
+
   const insertMany = db.transaction((items: MetricResult[]) => {
+    deleteExisting.run(competitorId);
     for (const m of items) {
       insert.run(
         randomUUID(),
@@ -362,7 +378,7 @@ export function saveScores(competitorId: string, metrics: MetricResult[]): void 
         m.name,
         m.score,
         m.weight,
-        m.details ? JSON.stringify(m.details) : null,
+        m.details != null ? (typeof m.details === 'string' ? m.details : JSON.stringify(m.details)) : null,
       );
     }
   });
@@ -454,6 +470,22 @@ export function updateElo(
   ).run(loserDelta, isDraw ? 0 : 1, isDraw ? 1 : 0, battleCountIncrement, now, loserKey);
 
   return { winnerDelta, loserDelta };
+}
+
+/** Apply a pre-computed ELO delta to a single model key. */
+export function applyEloDelta(
+  modelKey: string,
+  delta: number,
+  outcome: { wins?: number; losses?: number; draws?: number },
+): void {
+  const db = ensureDb();
+  // Ensure the model row exists
+  getEloRating(modelKey);
+  db.prepare(
+    `UPDATE elo_ratings
+     SET rating = rating + ?, wins = wins + ?, losses = losses + ?, draws = draws + ?, battle_count = battle_count + 1, last_updated = ?
+     WHERE model_key = ?`,
+  ).run(delta, outcome.wins ?? 0, outcome.losses ?? 0, outcome.draws ?? 0, getNowIso(), modelKey);
 }
 
 /** Increment battle_count by 1 for a single model key. */
