@@ -11,9 +11,9 @@
  *
  * Output:
  * - Screenshots: e2e/screenshots/arena-live/
- * - Generated websites: battles/<battle-id>/competitor-*/index.html
+ * - Generated websites: battles/[battle-id]/competitor-[n]/index.html
  *
- * Run:  npx playwright test e2e/arena-live-battle.test.ts --timeout 600000
+ * Run: npx playwright test e2e/arena-live-battle.test.ts
  */
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test';
 import { _electron as electron } from 'playwright';
@@ -49,6 +49,16 @@ test.beforeAll(async () => {
   execSync('npx electron-vite build', { cwd: PROJECT_ROOT, stdio: 'pipe' });
   console.log('Build complete.');
 
+  // Copy dev DB (with endpoints) to built output so the app has configured endpoints
+  const devDb = path.join(PROJECT_ROOT, 'backend', 'litebench.db');
+  const builtDb = path.join(PROJECT_ROOT, 'out', 'main', 'backend', 'litebench.db');
+  if (fs.existsSync(devDb)) {
+    const builtDir = path.dirname(builtDb);
+    fs.mkdirSync(builtDir, { recursive: true });
+    fs.copyFileSync(devDb, builtDb);
+    console.log('Copied dev DB with endpoints to built output.');
+  }
+
   console.log('Launching Electron...');
   app = await electron.launch({
     args: [path.join(PROJECT_ROOT, 'out', 'main', 'index.js')],
@@ -58,6 +68,15 @@ test.beforeAll(async () => {
 
   page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
+
+  // Capture console errors from the start
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') console.log(`  [CONSOLE] ${msg.text()}`);
+  });
+  page.on('pageerror', (err) => {
+    console.log(`  [PAGE ERROR] ${err.message}`);
+  });
+
   await page.waitForTimeout(3000);
   console.log('App ready.');
 });
@@ -74,37 +93,20 @@ test('Full Arena Battle — 2 models, sequential, website generation', async () 
   // ─── Phase 1: Navigate to Arena ───
   console.log('\n── Phase 1: Open Arena Panel ──');
 
-  // Find and click arena button in activity bar
-  // Try all sidebar buttons until we find the arena
-  const sidebarButtons = await page.locator('aside button, nav button, [class*="ctivity"] button')
-    .filter({ has: page.locator('svg') })
-    .all();
-
-  let arenaFound = false;
-  for (const btn of sidebarButtons) {
-    await btn.click();
-    await page.waitForTimeout(400);
-    const arenaText = await page.locator('text=/Battle Arena/i').count();
-    if (arenaText > 0) {
-      arenaFound = true;
-      console.log('  Arena panel opened');
-      break;
-    }
-  }
-
-  if (!arenaFound) {
-    // Fallback: try clicking by text
-    await page.locator('button:has-text("Arena")').first().click().catch(() => {});
-    await page.waitForTimeout(400);
-  }
+  // Click the Battle Arena button in the activity bar (it has title="Battle Arena")
+  const arenaBtn = page.locator('button[title="Battle Arena"]');
+  await arenaBtn.waitFor({ timeout: 5000 });
+  await arenaBtn.click();
+  await page.waitForTimeout(1000);
+  console.log('  Arena button clicked');
 
   await shot('01-arena-opened');
 
   // ─── Phase 2: Discover endpoints and models ───
   console.log('\n── Phase 2: Discover Endpoints ──');
 
-  // Wait for endpoints to load
-  await page.waitForTimeout(2000);
+  // Wait for endpoints to load (BattleConfig fetches on mount)
+  await page.waitForTimeout(4000);
 
   // Get available endpoints from the first select
   const endpointSelect = page.locator('select').first();
@@ -120,10 +122,27 @@ test('Full Arena Battle — 2 models, sequential, website generation', async () 
 
   await shot('02-endpoints-discovered');
 
-  // Select first endpoint and discover models
-  const firstEndpointValue = await endpointSelect.locator('option').first().getAttribute('value');
-  await endpointSelect.selectOption(firstEndpointValue ?? '');
-  await page.waitForTimeout(2000); // Wait for model discovery
+  // Select LM Studio endpoint (or first available that responds)
+  // Try to find an endpoint with models — LM Studio should have them
+  const allOptions = await endpointSelect.locator('option').all();
+  let selectedEndpoint = '';
+  for (const opt of allOptions) {
+    const val = await opt.getAttribute('value');
+    const text = await opt.textContent();
+    if (val && text) {
+      await endpointSelect.selectOption(val);
+      console.log(`  Trying endpoint: ${text}`);
+      await page.waitForTimeout(3000); // Wait for model discovery
+      const msel = page.locator('select').nth(1);
+      const mcount = await msel.locator('option').count();
+      const firstModelText = await msel.locator('option').first().textContent();
+      if (mcount > 1 || (firstModelText && firstModelText !== 'No models' && firstModelText !== 'Select model')) {
+        selectedEndpoint = text ?? val;
+        console.log(`  Using endpoint: ${selectedEndpoint} (has models)`);
+        break;
+      }
+    }
+  }
 
   // Get model list
   const modelSelect = page.locator('select').nth(1);
@@ -197,8 +216,29 @@ test('Full Arena Battle — 2 models, sequential, website generation', async () 
   }
 
   await battleButton.click();
-  console.log('  ⚡ Battle started!');
-  await page.waitForTimeout(2000);
+  console.log('  ⚡ Battle button clicked!');
+  await page.waitForTimeout(3000);
+
+  // Check for errors — the store catches errors and sets error state
+  const errorText = await page.evaluate(() => {
+    // @ts-ignore - access Zustand store from devtools
+    return document.body.innerText;
+  });
+  if (errorText.includes('Error') || errorText.includes('error')) {
+    const errorLines = errorText.split('\n').filter((l: string) => /error/i.test(l));
+    if (errorLines.length > 0) console.log(`  ⚠️ Possible errors: ${errorLines.slice(0, 3).join(' | ')}`);
+  }
+
+  // Check if we transitioned to building phase
+  const buildingVisible = await page.locator('text=/Building|in Progress/i').count();
+  const stillConfig = await page.locator('text=/Battle Arena/i').count();
+  console.log(`  Building phase visible: ${buildingVisible > 0}, Still on config: ${stillConfig > 0}`);
+
+  // Try to read console errors from the Electron renderer
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') console.log(`  [CONSOLE ERROR] ${msg.text()}`);
+  });
+
   await shot('06-battle-started');
 
   // ─── Phase 7: Monitor battle progress ───

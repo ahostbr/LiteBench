@@ -28,14 +28,14 @@ export function ArenaPanel() {
     cancelBattle,
   } = store;
 
-  const isConfiguring = phase === 'configuring' || activeBattle === null;
-  const isBuilding = phase === 'building' && activeBattle !== null;
+  const isConfiguring = phase === 'configuring';
+  const isBuilding = phase === 'building';
   const isJudging = (phase === 'judging' || phase === 'results') && activeBattle !== null;
 
   return (
     <div className="h-full flex flex-col bg-zinc-950 overflow-hidden">
       {/* Panel header (only shown during battle/judging) */}
-      {!isConfiguring && activeBattle && (
+      {!isConfiguring && (
         <div
           className="flex items-center gap-2 px-3 py-2 shrink-0"
           style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}
@@ -87,12 +87,24 @@ export function ArenaPanel() {
         </div>
       )}
 
-      {isBuilding && activeBattle && (
-        <ArenaGrid
-          battleId={activeBattle.id}
-          competitors={activeBattle.competitors}
-          competitorStates={competitorStates}
-        />
+      {isBuilding && (
+        activeBattle ? (
+          <ArenaGrid
+            battleId={activeBattle.id}
+            competitors={activeBattle.competitors}
+            competitorStates={competitorStates}
+          />
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <div
+                className="w-8 h-8 border-2 rounded-full animate-spin"
+                style={{ borderColor: 'rgba(201,162,77,0.2)', borderTopColor: 'var(--accent-color, #c9a24d)' }}
+              />
+              <span className="text-sm text-zinc-500">Starting battle...</span>
+            </div>
+          </div>
+        )
       )}
 
       {isJudging && activeBattle && (
