@@ -411,3 +411,71 @@ export interface LiveAgentTask {
   textSoFar: string;
   toolCalls: AgentToolCall[];
 }
+
+// --- Arena Battle Types ---
+
+export type BattlePhase = 'configuring' | 'building' | 'judging' | 'results';
+export type BattleStatus = 'active' | 'completed' | 'cancelled';
+export type CompetitorStatus = 'pending' | 'running' | 'completed' | 'failed' | 'dnf';
+
+export interface Battle {
+  id: string;
+  prompt: string;
+  presetId?: string;
+  phase: BattlePhase;
+  status: BattleStatus;
+  competitors: BattleCompetitor[];
+  winnerId?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface BattleCompetitor {
+  id: string;
+  battleId: string;
+  endpointId: number;
+  modelId: string;
+  status: CompetitorStatus;
+  outputDir: string;
+  startTime?: string;
+  endTime?: string;
+  score?: number;
+  eloChange?: number;
+}
+
+export interface MetricResult {
+  name: string;
+  score: number; // 0-100
+  details?: string;
+  weight: number;
+}
+
+export interface EloRating {
+  modelKey: string;
+  rating: number; // default 1500
+  wins: number;
+  losses: number;
+  draws: number;
+  battleCount: number;
+  lastUpdated: string;
+}
+
+export type BattleEvent =
+  | { type: 'competitor_start'; competitorId: string; modelId: string }
+  | { type: 'text_delta'; competitorId: string; content: string }
+  | { type: 'tool_call'; competitorId: string; toolCall: AgentToolCall }
+  | { type: 'file_written'; competitorId: string; filename: string; path: string }
+  | { type: 'competitor_done'; competitorId: string; status: CompetitorStatus }
+  | { type: 'battle_done'; battleId: string; phase: BattlePhase }
+  | { type: 'metrics_ready'; competitorId: string; metrics: MetricResult[] }
+  | { type: 'error'; competitorId?: string; message: string };
+
+export type ChallengeDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface PresetChallenge {
+  id: string;
+  title: string;
+  description: string;
+  difficulty: ChallengeDifficulty;
+  systemPromptAddendum: string;
+}

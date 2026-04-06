@@ -1,10 +1,13 @@
 import OpenAI from 'openai';
+import { writeFileSync, mkdirSync } from 'fs';
+import path from 'path';
 import {
   navigateTo,
   readPage,
   clickElement,
   typeText,
   getActiveSessionId,
+  executeJS,
 } from '../browser-manager';
 
 /**
@@ -260,6 +263,31 @@ toolRegistry.register({
 
 // pccontrol removed — was half-finished Kuroryuu port, not needed for benchmarking
 
+// ── write_file context manager ────────────────────────────────────────────────
+// Per-run output directory — set by CompetitorRunner before agent starts,
+// cleared after. Keyed by context key (same pattern as browser sessions).
+
+const writeFileOutputDirs = new Map<string, string>();
+let _activeWriteFileKey = '';
+
+/** Set by CompetitorRunner before starting an agent run. */
+export function setWriteFileContext(key: string, outputDir: string): void {
+  writeFileOutputDirs.set(key, outputDir);
+  _activeWriteFileKey = key;
+}
+
+/** Called by CompetitorRunner after completion to release the dir. */
+export function clearWriteFileContext(key: string): void {
+  writeFileOutputDirs.delete(key);
+  if (_activeWriteFileKey === key) _activeWriteFileKey = '';
+}
+
+function getActiveOutputDir(): string | undefined {
+  return writeFileOutputDirs.get(_activeWriteFileKey);
+}
+
+const ALLOWED_EXTENSIONS = new Set(['.html', '.css', '.js', '.svg', '.json', '.png', '.ico', '.txt']);
+
 // ── Browser session manager ───────────────────────────────────────────────────
 // Browser tools use the SINGLE visible browser session (the Browser panel).
 // No invisible sessions — the user always sees what the agent is doing.
@@ -370,6 +398,67 @@ function formatElementsList(
 
   return lines.join('\n');
 }
+
+// ── write_file tool ───────────────────────────────────────────────────────────
+
+toolRegistry.register({
+  category: 'code',
+  schema: {
+    type: 'function',
+    function: {
+      name: 'write_file',
+      description:
+        'Write content to a file in the current output directory. Use this to create HTML, CSS, JS, and other web files. Always start with index.html as your main entry point.',
+      parameters: {
+        type: 'object',
+        properties: {
+          filename: {
+            type: 'string',
+            description: 'File name only, no path (e.g. index.html, styles.css, app.js). Subdirectories not allowed.',
+          },
+          content: {
+            type: 'string',
+            description: 'Full file content to write.',
+          },
+        },
+        required: ['filename', 'content'],
+      },
+    },
+  },
+  executor: async (args) => {
+    const filename = args.filename as string;
+    const content = args.content as string;
+
+    if (!filename || typeof filename !== 'string') {
+      return 'Error: filename is required';
+    }
+
+    // Security: no path traversal, no directory separators
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return 'Error: filename must be a plain filename with no path components (e.g. index.html)';
+    }
+
+    const ext = path.extname(filename).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.has(ext)) {
+      return `Error: file extension "${ext}" is not allowed. Allowed: ${Array.from(ALLOWED_EXTENSIONS).join(', ')}`;
+    }
+
+    const outputDir = getActiveOutputDir();
+    if (!outputDir) {
+      return 'Error: no output directory configured. write_file is only available during Arena battles.';
+    }
+
+    try {
+      mkdirSync(outputDir, { recursive: true });
+      const filePath = path.join(outputDir, filename);
+      writeFileSync(filePath, content, 'utf8');
+      return `File written: ${filePath} (${content.length} bytes)`;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return `Error writing file: ${msg}`;
+    }
+  },
+});
 
 // ── Browser tool registrations ────────────────────────────────────────────────
 

@@ -70,6 +70,20 @@ export const api = {
       window.liteBench.agentBenchmark.onEvent(callback),
   },
 
+  arena: {
+    startBattle: (config: Parameters<typeof window.liteBench.arena.startBattle>[0]) =>
+      window.liteBench.arena.startBattle(config),
+    cancelBattle: (battleId: string) => window.liteBench.arena.cancelBattle(battleId),
+    getGallery: () => window.liteBench.arena.getGallery(),
+    getBattle: (battleId: string) => window.liteBench.arena.getBattle(battleId),
+    getElo: () => window.liteBench.arena.getElo(),
+    getPresets: () => window.liteBench.arena.getPresets(),
+    judge: (battleId: string, winnerId: string) =>
+      window.liteBench.arena.judge(battleId, winnerId),
+    onEvent: (callback: Parameters<typeof window.liteBench.arena.onEvent>[0]) =>
+      window.liteBench.arena.onEvent(callback),
+  },
+
   browser: {
     create: () => window.liteBench.browser.create(),
     destroy: (sessionId: string) => window.liteBench.browser.destroy(sessionId),

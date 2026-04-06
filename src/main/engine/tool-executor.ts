@@ -25,7 +25,7 @@ export function getPythonPath(): string {
   try {
     const result = execSync('where python', {
       encoding: 'utf8',
-      shell: true,
+      shell: 'cmd.exe',
       env: { ...process.env, PATH: process.env.PATH },
     }).split('\n')[0].trim();
     if (result && existsSync(result)) {

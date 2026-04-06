@@ -24,7 +24,7 @@ export function ModelSelector() {
   // Reset to first endpoint if current one no longer exists (stale endpoint)
   useEffect(() => {
     if (store.selectedEndpointId && !endpoints.find(e => e.id === store.selectedEndpointId)) {
-      store.setEndpoint(endpoints.length > 0 ? endpoints[0].id : null);
+      if (endpoints.length > 0) store.setEndpoint(endpoints[0].id);
     }
   }, [endpoints, store.selectedEndpointId]);
 

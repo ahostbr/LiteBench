@@ -18,6 +18,7 @@ import { WelcomePanel } from '@/components/workspace/WelcomePanel';
 import { lazy, Suspense } from 'react';
 
 const TerminalPanel = lazy(() => import('@/components/terminal/TerminalPanel').then(m => ({ default: m.TerminalPanel })));
+const ArenaPanel = lazy(() => import('@/components/arena/ArenaPanel').then(m => ({ default: m.ArenaPanel })));
 
 function ScrollWrap({ children }: { children: React.ReactNode }) {
   return <div className="h-full overflow-y-auto p-6">{children}</div>;
@@ -47,6 +48,8 @@ function PanelContent({ panel }: { panel: WorkspacePanel }) {
       return <BrowserPanel />;
     case 'terminal':
       return <Suspense fallback={<div className="h-full bg-zinc-950" />}><TerminalPanel /></Suspense>;
+    case 'arena':
+      return <Suspense fallback={<div className="h-full bg-zinc-950" />}><ArenaPanel /></Suspense>;
     default:
       return null;
   }

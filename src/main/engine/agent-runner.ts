@@ -60,6 +60,7 @@ export async function streamAgentChat(
   signal: AbortSignal,
   onEvent: (event: AgentStreamEvent) => void,
   contextKey?: string,
+  customInstructions?: string,
 ): Promise<void> {
   const client = new OpenAI({
     apiKey: endpoint.api_key,
@@ -82,7 +83,7 @@ export async function streamAgentChat(
       description: t.function.description ?? '',
       parameters: (t.function.parameters ?? {}) as Record<string, unknown>,
     })),
-    { enableTools },
+    { enableTools, customInstructions },
   );
 
   // Mutable conversation that grows with tool results

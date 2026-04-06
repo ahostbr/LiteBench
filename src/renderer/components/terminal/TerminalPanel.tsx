@@ -34,8 +34,8 @@ export function TerminalPanel() {
         args: ['-NoLogo'],
       });
 
-      if (!result.id || result.error) {
-        throw new Error(result.error || 'Failed to create terminal session');
+      if (!result.id) {
+        throw new Error('Failed to create terminal session');
       }
 
       // Store PTY ID and flip to started — React will render the container div

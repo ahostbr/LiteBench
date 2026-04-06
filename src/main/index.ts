@@ -9,6 +9,8 @@ import { registerEndpointsHandlers } from './ipc/endpoints-handlers';
 import { registerSuitesHandlers } from './ipc/suites-handlers';
 import { registerPtyHandlers, destroyAllPtySessions } from './ipc/pty-handlers';
 import { registerTestToolsHandlers } from './ipc/test-tools-handlers';
+import { registerArenaHandlers } from './ipc/arena-handlers';
+import { initBattlesDb, closeBattlesDb } from './db/battles-db';
 import {
   bindWindowStateEvents,
   registerWindowHandlers,
@@ -170,6 +172,7 @@ app.whenReady().then(() => {
 
   const dbPath = initializeDatabase();
   console.log('[LiteBench] Database initialized at', dbPath);
+  initBattlesDb();
 
   registerWindowHandlers();
   registerEndpointsHandlers();
@@ -179,6 +182,7 @@ app.whenReady().then(() => {
   registerPtyHandlers();
   registerBrowserHandlers();
   registerTestToolsHandlers();
+  registerArenaHandlers();
 
   createMainWindow();
 
@@ -192,6 +196,7 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   destroyAllPtySessions();
   closeDatabase();
+  closeBattlesDb();
 });
 
 app.on('window-all-closed', () => {

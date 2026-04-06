@@ -1,4 +1,4 @@
-import { LayoutDashboard, Play, History, FlaskConical, Settings, MessageSquare, Globe, Microscope, TerminalSquare, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Play, History, FlaskConical, Settings, MessageSquare, Globe, Microscope, TerminalSquare, Sparkles, Swords } from 'lucide-react';
 import { useWorkspaceStore, type PanelType } from '@/stores/workspace-store';
 import { cn } from '@/lib/utils';
 
@@ -12,6 +12,7 @@ const panelIcons: { type: PanelType; icon: React.ElementType; label: string }[] 
   { type: 'agent-benchmark', icon: Microscope, label: 'Agent Benchmark' },
   { type: 'browser', icon: Globe, label: 'Browser' },
   { type: 'terminal', icon: TerminalSquare, label: 'Terminal' },
+  { type: 'arena', icon: Swords, label: 'Battle Arena' },
 ];
 
 export function ActivityBar() {

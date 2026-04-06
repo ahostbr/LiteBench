@@ -22,6 +22,8 @@ import type {
   AgentSendRequest,
   AgentStreamEvent,
   ApiMessageResponse,
+  Battle,
+  BattleEvent,
   BenchmarkRun,
   BenchmarkRunRequest,
   BenchmarkRunStartResponse,
@@ -30,10 +32,12 @@ import type {
   Endpoint,
   EndpointCreateInput,
   EndpointUpdateInput,
+  EloRating,
   ExportFormat,
   ExportRunResponse,
   ImportLegacyResponse,
   ModelInfo,
+  PresetChallenge,
   SeedSuiteResponse,
   SetupCheckResult,
   TestCase,
@@ -121,6 +125,30 @@ export interface LiteBenchApi {
     run(input: { endpoint_id: number; suite_id: number; model_id: string; model_name: string }): Promise<BenchmarkRunStartResponse>;
     cancel(runId: number): Promise<ApiMessageResponse>;
     onEvent(callback: (event: AgentBenchmarkStreamEvent) => void): () => void;
+  };
+  pty: {
+    create(opts?: { cwd?: string; cmd?: string; args?: string[] }): Promise<{ id: string; pid: number }>;
+    write(id: string, data: string): void;
+    resize(id: string, cols: number, rows: number): void;
+    destroy(id: string): Promise<void>;
+    onData(id: string, cb: (data: string) => void): () => void;
+    onExit(id: string, cb: (code: number) => void): () => void;
+  };
+  testTools: {
+    executeTool(name: string, args: Record<string, unknown>): Promise<unknown>;
+    getSchemas(smallModel?: boolean): Promise<unknown>;
+    buildPrompt(modelId: string): Promise<unknown>;
+    isSmallModel(modelId: string): Promise<boolean>;
+  };
+  arena: {
+    startBattle(config: { prompt: string; competitors: { endpointId: number; modelId: string }[]; presetId?: string }): Promise<Battle>;
+    cancelBattle(battleId: string): Promise<void>;
+    getGallery(): Promise<Battle[]>;
+    getBattle(battleId: string): Promise<Battle>;
+    getElo(): Promise<EloRating[]>;
+    getPresets(): Promise<PresetChallenge[]>;
+    judge(battleId: string, winnerId: string): Promise<void>;
+    onEvent(callback: (event: BattleEvent) => void): () => void;
   };
   browser: {
     create(): Promise<string>;
@@ -255,6 +283,22 @@ const api: LiteBenchApi = {
       ipcRenderer.on('bench:agent-bench:event', handler);
       return () => {
         ipcRenderer.removeListener('bench:agent-bench:event', handler);
+      };
+    },
+  },
+  arena: {
+    startBattle: (config) => ipcRenderer.invoke('bench:arena:start-battle', config),
+    cancelBattle: (battleId) => ipcRenderer.invoke('bench:arena:cancel-battle', battleId),
+    getGallery: () => ipcRenderer.invoke('bench:arena:get-gallery'),
+    getBattle: (battleId) => ipcRenderer.invoke('bench:arena:get-battle', battleId),
+    getElo: () => ipcRenderer.invoke('bench:arena:get-elo'),
+    getPresets: () => ipcRenderer.invoke('bench:arena:get-presets'),
+    judge: (battleId, winnerId) => ipcRenderer.invoke('bench:arena:judge', battleId, winnerId),
+    onEvent: (callback) => {
+      const handler = (_event: unknown, payload: BattleEvent) => callback(payload);
+      ipcRenderer.on('bench:arena:event', handler);
+      return () => {
+        ipcRenderer.removeListener('bench:arena:event', handler);
       };
     },
   },
