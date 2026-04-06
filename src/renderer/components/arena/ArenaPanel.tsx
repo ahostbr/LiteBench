@@ -18,10 +18,12 @@ export function ArenaPanel() {
     selectedModels,
     prompt,
     presetId,
+    sequential,
     addModel,
     removeModel,
     setPrompt,
     selectPreset,
+    setSequential,
     startBattle,
     cancelBattle,
   } = store;
@@ -74,10 +76,12 @@ export function ArenaPanel() {
             selectedModels={selectedModels}
             prompt={prompt}
             presetId={presetId}
+            sequential={sequential}
             onAddModel={addModel}
             onRemoveModel={removeModel}
             onSetPrompt={setPrompt}
             onSelectPreset={selectPreset}
+            onSetSequential={setSequential}
             onStartBattle={startBattle}
           />
         </div>

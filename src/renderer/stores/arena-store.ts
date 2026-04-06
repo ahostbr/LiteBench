@@ -23,6 +23,8 @@ interface ArenaState {
   selectedModels: { endpointId: number; modelId: string }[];
   prompt: string;
   presetId: string | null;
+  /** Run competitors sequentially (default: true — most users have 1 GPU) */
+  sequential: boolean;
 
   // Active battle
   activeBattle: Battle | null;
@@ -52,6 +54,7 @@ interface ArenaState {
   loadGallery(): Promise<void>;
   loadElo(): Promise<void>;
   loadPresets(): Promise<void>;
+  setSequential(v: boolean): void;
   resetToConfig(): void;
   _handleBattleEvent(event: BattleEvent): void;
 }
@@ -63,6 +66,7 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
   selectedModels: [],
   prompt: '',
   presetId: null,
+  sequential: true,
   activeBattle: null,
   competitorStates: new Map(),
   phase: 'configuring',
@@ -92,8 +96,12 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
     set({ prompt: preset.systemPromptAddendum || preset.description, presetId: preset.id });
   },
 
+  setSequential(v) {
+    set({ sequential: v });
+  },
+
   async startBattle() {
-    const { selectedModels, prompt, presetId } = get();
+    const { selectedModels, prompt, presetId, sequential } = get();
     if (selectedModels.length < 2) return;
 
     set({ error: null, phase: 'building', competitorStates: new Map() });
@@ -103,6 +111,7 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
         prompt,
         competitors: selectedModels,
         presetId: presetId ?? undefined,
+        sequential,
       });
 
       const initialStates = new Map<string, CompetitorState>();

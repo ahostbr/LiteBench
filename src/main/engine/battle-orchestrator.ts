@@ -30,6 +30,8 @@ export interface StartBattleConfig {
   /** If provided, uses this endpoint+model as the LLM aesthetic judge */
   judgeEndpointId?: number;
   judgeModelId?: string;
+  /** Run competitors one at a time (default: true — most users have 1 GPU) */
+  sequential?: boolean;
 }
 
 export type BattleEventCallback = (event: BattleEvent) => void;
@@ -123,12 +125,12 @@ export async function startBattle(
 
   // Per-competitor timeout AbortControllers
   const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const sequential = config.sequential !== false; // default: sequential (most users have 1 GPU)
 
-  // Launch all competitors in parallel
-  const runPromises = competitorEntries.map(async (entry) => {
+  // Run a single competitor with timeout + abort handling
+  async function executeCompetitor(entry: typeof competitorEntries[0]) {
     const { competitorId, endpoint, modelId, outputDir } = entry;
 
-    // Per-competitor timeout
     const competitorController = new AbortController();
     const timeoutHandle = setTimeout(() => {
       competitorController.abort();
@@ -143,6 +145,9 @@ export async function startBattle(
       status: 'running',
       startTime: new Date().toISOString(),
     });
+
+    // Emit competitor_start so UI knows this one is active
+    onEvent({ type: 'competitor_start', competitorId });
 
     try {
       const result = await runCompetitor({
@@ -178,10 +183,20 @@ export async function startBattle(
       onEvent({ type: 'error', competitorId, message: e instanceof Error ? e.message : String(e) });
       return { competitorId, modelId, endpointId: entry.endpointId, status: 'failed' as const, outputDir };
     }
-  });
+  }
 
-  // Wait for all competitors
-  const results = await Promise.all(runPromises);
+  // Sequential (default): run one at a time — most users have 1 GPU
+  // Parallel: run all at once — for power users with multi-GPU or separate endpoints
+  let results: Awaited<ReturnType<typeof executeCompetitor>>[];
+  if (sequential) {
+    results = [];
+    for (const entry of competitorEntries) {
+      if (controller.signal.aborted) break;
+      results.push(await executeCompetitor(entry));
+    }
+  } else {
+    results = await Promise.all(competitorEntries.map(executeCompetitor));
+  }
 
   if (controller.signal.aborted) {
     updateBattle(battleId, {

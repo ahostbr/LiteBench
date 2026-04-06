@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Swords, X, Plus } from 'lucide-react';
+import { Swords, X, Plus, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEndpointsStore } from '@/stores/endpoints';
 import { PresetChallenges } from './PresetChallenges';
@@ -9,10 +9,12 @@ interface BattleConfigProps {
   selectedModels: { endpointId: number; modelId: string }[];
   prompt: string;
   presetId: string | null;
+  sequential: boolean;
   onAddModel: (endpointId: number, modelId: string) => void;
   onRemoveModel: (index: number) => void;
   onSetPrompt: (prompt: string) => void;
   onSelectPreset: (preset: PresetChallenge) => void;
+  onSetSequential: (v: boolean) => void;
   onStartBattle: () => void;
 }
 
@@ -20,10 +22,12 @@ export function BattleConfig({
   selectedModels,
   prompt,
   presetId,
+  sequential,
   onAddModel,
   onRemoveModel,
   onSetPrompt,
   onSelectPreset,
+  onSetSequential,
   onStartBattle,
 }: BattleConfigProps) {
   const { endpoints, models, fetch: fetchEndpoints, discoverModels } = useEndpointsStore();
@@ -186,6 +190,41 @@ export function BattleConfig({
 
       {/* Preset challenges */}
       <PresetChallenges onSelect={onSelectPreset} selectedPresetId={presetId} />
+
+      {/* Execution mode toggle */}
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2">
+          <Zap size={13} style={{ color: sequential ? 'var(--text-muted, #7a756d)' : 'var(--accent-color, #c9a24d)' }} />
+          <span className="text-xs text-zinc-400">Parallel Mode</span>
+        </div>
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!sequential}
+            onChange={(e) => onSetSequential(!e.target.checked)}
+            className="sr-only peer"
+          />
+          <div
+            className="w-8 h-4 rounded-full peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:rounded-full after:h-3 after:w-3 after:transition-all"
+            style={{
+              backgroundColor: sequential ? 'rgba(255,255,255,0.1)' : 'var(--accent-color, #c9a24d)',
+            }}
+          >
+            <div
+              className="absolute top-0.5 rounded-full h-3 w-3 transition-all"
+              style={{
+                left: sequential ? '2px' : '18px',
+                backgroundColor: sequential ? '#71717a' : '#0a0a0b',
+              }}
+            />
+          </div>
+        </label>
+      </div>
+      <p className="text-[10px] text-zinc-600 px-1 -mt-3">
+        {sequential
+          ? 'Sequential — runs models one at a time (recommended for single GPU)'
+          : 'Parallel — runs all models simultaneously (multi-GPU / separate endpoints)'}
+      </p>
 
       {/* Battle button */}
       <button

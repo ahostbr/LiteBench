@@ -141,7 +141,7 @@ export interface LiteBenchApi {
     isSmallModel(modelId: string): Promise<boolean>;
   };
   arena: {
-    startBattle(config: { prompt: string; competitors: { endpointId: number; modelId: string }[]; presetId?: string }): Promise<Battle>;
+    startBattle(config: { prompt: string; competitors: { endpointId: number; modelId: string }[]; presetId?: string; sequential?: boolean }): Promise<Battle>;
     cancelBattle(battleId: string): Promise<void>;
     getGallery(): Promise<Battle[]>;
     getBattle(battleId: string): Promise<Battle>;
