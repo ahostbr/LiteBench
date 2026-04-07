@@ -104,6 +104,18 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
     const { selectedModels, prompt, presetId, sequential } = get();
     if (selectedModels.length < 2) return;
 
+    // Clean up previous listener before registering a new one
+    if (_eventUnsubscribe) {
+      _eventUnsubscribe();
+      _eventUnsubscribe = null;
+    }
+
+    // Register event listener BEFORE starting the battle
+    // Events fire immediately on the main process side — we must be listening
+    _eventUnsubscribe = api.arena.onEvent((event: BattleEvent) => {
+      get()._handleBattleEvent(event);
+    });
+
     set({ error: null, phase: 'building', competitorStates: new Map() });
 
     try {
@@ -124,18 +136,12 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
       }
 
       set({ activeBattle: battle, competitorStates: initialStates });
-
-      // Clean up previous listener before registering a new one
+    } catch (err) {
+      console.error('[Arena] startBattle failed:', err);
       if (_eventUnsubscribe) {
         _eventUnsubscribe();
         _eventUnsubscribe = null;
       }
-
-      // Register event listener
-      _eventUnsubscribe = api.arena.onEvent((event: BattleEvent) => {
-        get()._handleBattleEvent(event);
-      });
-    } catch (err) {
       set({ error: String(err), phase: 'configuring' });
     }
   },

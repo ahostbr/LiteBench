@@ -26,6 +26,7 @@ export function ArenaPanel() {
     setSequential,
     startBattle,
     cancelBattle,
+    error,
   } = store;
 
   const isConfiguring = phase === 'configuring';
@@ -66,6 +67,16 @@ export function ArenaPanel() {
               <X size={14} />
             </button>
           )}
+        </div>
+      )}
+
+      {/* Error banner */}
+      {error && (
+        <div
+          className="px-4 py-2 text-xs shrink-0"
+          style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444', borderBottom: '1px solid rgba(239,68,68,0.2)' }}
+        >
+          Battle error: {error}
         </div>
       )}
 
