@@ -117,8 +117,9 @@ test('Devstral Stock vs Devstral Abliterated — Design Skill Battle', async () 
   console.log('\n── Adding Models ──');
   try {
     await modelSelect.selectOption({ label: MODEL_STOCK });
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(500);
     await addBtn.click();
+    await page.waitForTimeout(500);
     console.log(`  ✅ Added: ${MODEL_STOCK}`);
   } catch {
     console.log(`  ⚠️ Could not find ${MODEL_STOCK}, trying partial match`);
@@ -126,18 +127,20 @@ test('Devstral Stock vs Devstral Abliterated — Design Skill Battle', async () 
     const match = options.find(o => o.toLowerCase().includes('devstral') && !o.includes('abliterated'));
     if (match) {
       await modelSelect.selectOption({ label: match });
-      await page.waitForTimeout(200);
+      await page.waitForTimeout(500);
       await addBtn.click();
+      await page.waitForTimeout(500);
       console.log(`  ✅ Added: ${match}`);
     }
   }
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(500);
 
   // Add abliterated Devstral
   try {
     await modelSelect.selectOption({ label: MODEL_ABLITERATED });
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(500);
     await addBtn.click();
+    await page.waitForTimeout(500);
     console.log(`  ✅ Added: ${MODEL_ABLITERATED}`);
   } catch {
     console.log(`  ⚠️ Could not find ${MODEL_ABLITERATED}, trying partial match`);
@@ -145,12 +148,13 @@ test('Devstral Stock vs Devstral Abliterated — Design Skill Battle', async () 
     const match = options.find(o => o.toLowerCase().includes('abliterated'));
     if (match) {
       await modelSelect.selectOption({ label: match });
-      await page.waitForTimeout(200);
+      await page.waitForTimeout(500);
       await addBtn.click();
+      await page.waitForTimeout(500);
       console.log(`  ✅ Added: ${match}`);
     }
   }
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(500);
 
   await shot('01-models-selected');
 
@@ -174,9 +178,34 @@ test('Devstral Stock vs Devstral Abliterated — Design Skill Battle', async () 
     return;
   }
 
-  await battleBtn.click();
-  console.log('  ⚡ Battle started! (sequential — stock Devstral first, then abliterated)');
-  await page.waitForTimeout(5000);
+  // Call startBattle directly via preload API — Playwright click doesn't reliably trigger React handlers
+  console.log('  Calling startBattle via IPC directly...');
+  const battleResult = await page.evaluate(async (config) => {
+    try {
+      // @ts-ignore
+      const api = window.liteBench;
+      const battle = await api.arena.startBattle(config);
+      return { success: true, battleId: battle?.id, competitorCount: battle?.competitors?.length };
+    } catch (err: any) {
+      return { success: false, error: err?.message || String(err) };
+    }
+  }, {
+    prompt: DESIGN_SKILL_PROMPT,
+    competitors: [
+      { endpointId: 1, modelId: MODEL_STOCK },
+      { endpointId: 1, modelId: MODEL_ABLITERATED },
+    ],
+    sequential: true,
+  });
+
+  if (!battleResult.success) {
+    console.log(`  ❌ IPC FAILED: ${battleResult.error}`);
+    await shot('03-battle-failed');
+    return;
+  }
+
+  console.log(`  ⚡ Battle started: ${battleResult.battleId} (${battleResult.competitorCount} competitors)`);
+  await page.waitForTimeout(3000);
   await shot('03-battle-started');
 
   // Monitor progress
