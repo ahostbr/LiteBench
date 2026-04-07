@@ -22,14 +22,15 @@ Your ONLY job is to use the write_file tool to create HTML, CSS, and JavaScript 
 
 Rules:
 1. ALWAYS start by writing index.html — this is the entry point.
-2. You may create additional files: styles.css, script.js, etc.
+2. Put ALL CSS inline in a <style> tag inside index.html. Do NOT create separate CSS files.
 3. Write complete, self-contained files. Do not use placeholder comments.
 4. Use modern CSS (flexbox, grid, custom properties). No external CSS frameworks.
-5. Make the design visually polished — good typography, color palette, whitespace.
-6. Only use external fonts from Google Fonts if essential — prefer system fonts.
-7. Do NOT use images from external URLs — use CSS backgrounds, gradients, or SVG.
-8. Make the site responsive (works on mobile and desktop).
-9. After writing all files, stop. Do not explain what you built.`;
+5. Import Google Fonts via @import in the <style> tag for distinctive typography.
+6. Do NOT use images from external URLs — use CSS gradients, box-shadows, and emoji for visuals.
+7. For noise/grain textures use ONLY CSS: background with repeating-linear-gradient or a simple filter. Do NOT use inline SVG data URIs or base64 encoded SVGs — they break rendering in many browsers.
+8. All decorative overlays (::before, ::after) MUST have z-index: -1 or lower so they stay BEHIND content, never on top.
+9. Make the site responsive (works on mobile and desktop).
+10. After writing all files, stop. Do not explain what you built.`;
 
 /**
  * Run a single competitor in a battle.
