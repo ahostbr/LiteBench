@@ -1,6 +1,7 @@
 import { mkdirSync } from 'fs';
 import { join } from 'path';
 import { app } from 'electron';
+import { net } from 'electron';
 import type { BattleEvent, Endpoint } from '../../shared/types';
 import {
   createBattle,
@@ -16,6 +17,74 @@ import { collectMetrics, computeCompositeScore } from './metrics-collector';
 import { applyMultiCompetitorElo, makeModelKey } from './elo-system';
 
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes per competitor
+
+/**
+ * Unload all loaded models from an endpoint (LM Studio, Ollama, etc.)
+ * This prevents OOM when switching models in sequential mode.
+ *
+ * Supports:
+ * - LM Studio: GET /api/v0/models (state field), POST /api/v1/models/unload
+ * - Ollama: POST /api/generate with keep_alive=0
+ *
+ * Best-effort — silently ignores errors (endpoint may not support unload).
+ */
+async function unloadModelsFromEndpoint(endpoint: Endpoint): Promise<void> {
+  const baseUrl = endpoint.base_url.replace(/\/v1\/?$/, ''); // strip /v1 suffix
+
+  try {
+    // Try LM Studio v0 API to find loaded models
+    const listResp = await fetch(`${baseUrl}/api/v0/models`);
+    if (listResp.ok) {
+      const data = await listResp.json() as { data?: Array<{ id: string; state: string }> };
+      const loaded = (data.data ?? []).filter((m) => m.state === 'loaded');
+
+      for (const model of loaded) {
+        // LM Studio v1 unload — uses model id as instance_id
+        try {
+          await fetch(`${baseUrl}/api/v1/models/unload`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ instance_id: model.id }),
+          });
+          console.log(`[Arena] Unloaded model: ${model.id}`);
+        } catch {
+          // Try with just identifier field
+          try {
+            await fetch(`${baseUrl}/api/v1/models/unload`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ identifier: model.id }),
+            });
+          } catch { /* best effort */ }
+        }
+      }
+      // Wait a moment for VRAM to free
+      if (loaded.length > 0) {
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      return;
+    }
+  } catch { /* not LM Studio — try Ollama */ }
+
+  try {
+    // Ollama: POST /api/generate with keep_alive=0 to unload
+    const ollamaResp = await fetch(`${baseUrl}/api/tags`);
+    if (ollamaResp.ok) {
+      const data = await ollamaResp.json() as { models?: Array<{ name: string }> };
+      for (const model of data.models ?? []) {
+        try {
+          await fetch(`${baseUrl}/api/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: model.name, keep_alive: 0 }),
+          });
+          console.log(`[Arena] Unloaded Ollama model: ${model.name}`);
+        } catch { /* best effort */ }
+      }
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  } catch { /* not Ollama either — skip */ }
+}
 
 export interface BattleCompetitorConfig {
   endpointId: number;
@@ -186,12 +255,22 @@ export async function startBattle(
   }
 
   // Sequential (default): run one at a time — most users have 1 GPU
+  // Before each competitor: unload previous model to free VRAM
   // Parallel: run all at once — for power users with multi-GPU or separate endpoints
   let results: Awaited<ReturnType<typeof executeCompetitor>>[];
   if (sequential) {
     results = [];
-    for (const entry of competitorEntries) {
+    for (let i = 0; i < competitorEntries.length; i++) {
       if (controller.signal.aborted) break;
+      const entry = competitorEntries[i];
+
+      // Unload previous model before starting the next one
+      // This prevents OOM when two different models would both load into VRAM
+      if (i > 0) {
+        onEvent({ type: 'text_delta', competitorId: entry.competitorId, content: '[Unloading previous model...]\n' });
+        await unloadModelsFromEndpoint(entry.endpoint);
+      }
+
       results.push(await executeCompetitor(entry));
     }
   } else {

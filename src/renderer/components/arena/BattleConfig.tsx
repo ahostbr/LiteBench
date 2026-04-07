@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Swords, X, Plus, Zap } from 'lucide-react';
+import { Swords, X, Plus, Zap, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEndpointsStore } from '@/stores/endpoints';
 import { PresetChallenges } from './PresetChallenges';
@@ -191,40 +191,8 @@ export function BattleConfig({
       {/* Preset challenges */}
       <PresetChallenges onSelect={onSelectPreset} selectedPresetId={presetId} />
 
-      {/* Execution mode toggle */}
-      <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-2">
-          <Zap size={13} style={{ color: sequential ? 'var(--text-muted, #7a756d)' : 'var(--accent-color, #c9a24d)' }} />
-          <span className="text-xs text-zinc-400">Parallel Mode</span>
-        </div>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={!sequential}
-            onChange={(e) => onSetSequential(!e.target.checked)}
-            className="sr-only peer"
-          />
-          <div
-            className="w-8 h-4 rounded-full peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:rounded-full after:h-3 after:w-3 after:transition-all"
-            style={{
-              backgroundColor: sequential ? 'rgba(255,255,255,0.1)' : 'var(--accent-color, #c9a24d)',
-            }}
-          >
-            <div
-              className="absolute top-0.5 rounded-full h-3 w-3 transition-all"
-              style={{
-                left: sequential ? '2px' : '18px',
-                backgroundColor: sequential ? '#71717a' : '#0a0a0b',
-              }}
-            />
-          </div>
-        </label>
-      </div>
-      <p className="text-[10px] text-zinc-600 px-1 -mt-3">
-        {sequential
-          ? 'Sequential — runs models one at a time (recommended for single GPU)'
-          : 'Parallel — runs all models simultaneously (multi-GPU / separate endpoints)'}
-      </p>
+      {/* Execution mode — sequential by default, parallel requires confirmation */}
+      <ParallelModeToggle sequential={sequential} onSetSequential={onSetSequential} />
 
       {/* Battle button */}
       <button
@@ -243,6 +211,130 @@ export function BattleConfig({
         <Swords size={16} strokeWidth={2} />
         Battle ({selectedModels.length} models)
       </button>
+    </div>
+  );
+}
+
+/**
+ * Parallel mode toggle with safety confirmation.
+ * Sequential is default and safe. Parallel requires explicit acknowledgment
+ * because running multiple models simultaneously can OOM the machine.
+ */
+function ParallelModeToggle({
+  sequential,
+  onSetSequential,
+}: {
+  sequential: boolean;
+  onSetSequential: (v: boolean) => void;
+}) {
+  const [showWarning, setShowWarning] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+
+  const handleToggle = () => {
+    if (sequential) {
+      // Trying to enable parallel — show warning first
+      setShowWarning(true);
+    } else {
+      // Switching back to sequential — always safe
+      onSetSequential(true);
+      setShowWarning(false);
+      setConfirmed(false);
+    }
+  };
+
+  const handleConfirm = () => {
+    setConfirmed(true);
+    setShowWarning(false);
+    onSetSequential(false);
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2">
+          <Zap size={13} style={{ color: sequential ? 'var(--text-muted, #7a756d)' : '#f59e0b' }} />
+          <span className="text-xs text-zinc-400">Parallel Mode</span>
+          {!sequential && (
+            <span
+              className="text-[9px] font-medium px-1.5 py-0.5 rounded"
+              style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}
+            >
+              ADVANCED
+            </span>
+          )}
+        </div>
+        <button
+          onClick={handleToggle}
+          className="w-8 h-4 rounded-full relative transition-colors"
+          style={{
+            backgroundColor: sequential ? 'rgba(255,255,255,0.1)' : '#f59e0b',
+          }}
+        >
+          <div
+            className="absolute top-0.5 rounded-full h-3 w-3 transition-all"
+            style={{
+              left: sequential ? '2px' : '18px',
+              backgroundColor: sequential ? '#71717a' : '#0a0a0b',
+            }}
+          />
+        </button>
+      </div>
+
+      <p className="text-[10px] text-zinc-600 px-1">
+        {sequential
+          ? 'Sequential — models run one at a time. Previous model is unloaded before the next starts. Safe for any hardware.'
+          : 'Parallel — all models run simultaneously. Requires enough VRAM for all models loaded at once.'}
+      </p>
+
+      {/* Warning dialog when trying to enable parallel */}
+      {showWarning && (
+        <div
+          className="flex flex-col gap-3 p-3 rounded-lg mx-1"
+          style={{
+            backgroundColor: 'rgba(245,158,11,0.08)',
+            border: '1px solid rgba(245,158,11,0.25)',
+          }}
+        >
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={16} className="shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold" style={{ color: '#f59e0b' }}>
+                Parallel mode can crash your machine
+              </span>
+              <p className="text-[10px] text-zinc-400 leading-relaxed">
+                Running multiple models simultaneously loads all of them into VRAM at once.
+                A single GPU cannot safely run two large models. This will cause an out-of-memory
+                crash unless you have multiple GPUs or are only running very small models (~2GB each).
+              </p>
+              <div className="flex flex-col gap-1 mt-1">
+                <p className="text-[10px] font-medium text-zinc-300">Only enable if:</p>
+                <p className="text-[10px] text-zinc-500">
+                  &bull; You have multiple GPUs with separate endpoints<br />
+                  &bull; OR you&apos;re running only sub-2B models that fit together in VRAM<br />
+                  &bull; AND you understand the risk of OOM crashes
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => setShowWarning(false)}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors"
+              style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: '#a1a1aa' }}
+            >
+              Keep Sequential
+            </button>
+            <button
+              onClick={handleConfirm}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors"
+              style={{ backgroundColor: 'rgba(245,158,11,0.2)', color: '#f59e0b' }}
+            >
+              I understand, enable parallel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
