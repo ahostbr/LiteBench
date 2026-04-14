@@ -192,10 +192,8 @@ export async function streamAgentChat(
       const { cleanText, toolCalls: xmlToolCalls } = parseXMLToolCalls(assistantContent);
 
       if (xmlToolCalls.length > 0) {
-        // Emit the clean text (without XML tags) as the assistant content
-        if (cleanText) {
-          // Re-emit cleaned text (original text_deltas included the XML)
-        }
+        // Replace the streamed content (which included raw XML) with clean text
+        onEvent({ type: 'text_replace', content: cleanText });
 
         // Cap XML tool calls the same as native
         const capped = xmlToolCalls.slice(0, MAX_TOOL_CALLS_PER_TURN);

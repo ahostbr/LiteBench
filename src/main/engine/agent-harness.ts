@@ -240,11 +240,20 @@ function buildXMLSystemPrompt(
     `</tool_call>`,
     '```',
     ``,
-    `IMPORTANT:`,
-    `- The arguments MUST be valid JSON`,
-    `- You may call multiple tools by outputting multiple <tool_call> blocks`,
-    `- After each tool call, you will receive the result in a <tool_result> block`,
-    `- Use the tool results to formulate your final response`,
+    `CRITICAL FORMAT RULES:`,
+    `- You MUST use EXACTLY this XML format. No other format will be recognized.`,
+    `- Do NOT use <|tool_call>, call:, or any other format. ONLY the XML shown above.`,
+    `- The arguments MUST be valid JSON with quoted keys and values.`,
+    `- After each tool call, you will receive the result in a <tool_result> block.`,
+    `- Use the tool results to formulate your final response.`,
+    ``,
+    `EXAMPLE:`,
+    `User: "Go to https://example.com and tell me what the page says."`,
+    `You output:`,
+    `<tool_call>`,
+    `<name>browser_go</name>`,
+    `<arguments>{"url": "https://example.com"}</arguments>`,
+    `</tool_call>`,
     ``,
     `## Available Tools`,
     ``,
@@ -327,7 +336,30 @@ export function parseXMLToolCalls(text: string): {
     } catch { /* skip malformed */ }
   }
 
-  // Pattern 3: Bare JSON tool calls — {"name": "tool_name", "arguments": {...}}
+  // Pattern 3: Distilled model format — <|tool_call>call:tool_name{...}<tool_call|>
+  // Opus-distilled models bake in their own tool call format from training data
+  const distillRegex = /<\|tool_call>call[>:]?\s*(\w+)\s*\{([\s\S]*?)\}\s*<\/?tool_call\|?>/g;
+  while ((match = distillRegex.exec(text)) !== null) {
+    const name = match[1].trim();
+    const argsStr = '{' + match[2].trim() + '}';
+    let args: Record<string, unknown>;
+    try {
+      // Try parsing as JSON first
+      args = JSON.parse(argsStr);
+    } catch {
+      // Distilled models often emit pseudo-JSON with unquoted keys or special tokens
+      // Try cleaning it up: remove <|"|> tokens, quote unquoted keys
+      const cleaned = argsStr
+        .replace(/<\|"\|>/g, '"')  // <|"|> → "
+        .replace(/(\w+)\s*:/g, '"$1":')  // unquoted keys → quoted
+        .replace(/,\s*}/g, '}');  // trailing commas
+      try { args = JSON.parse(cleaned); } catch { args = { raw: match[2] }; }
+    }
+    toolCalls.push({ name, arguments: args });
+    cleanText = cleanText.replace(match[0], '');
+  }
+
+  // Pattern 4: Bare JSON tool calls — {"name": "tool_name", "arguments": {...}}
   // Only if no tool calls found yet (avoid false positives)
   if (toolCalls.length === 0) {
     const jsonRegex = /\{\s*"name"\s*:\s*"(\w+)"\s*,\s*"arguments"\s*:\s*(\{[\s\S]*?\})\s*\}/g;
@@ -351,5 +383,7 @@ export function hasPartialToolCall(text: string): boolean {
   // Check for opening tag without closing
   if (text.lastIndexOf('<tool_call>') > text.lastIndexOf('</tool_call>')) return true;
   if (text.lastIndexOf('[TOOL_REQUEST]') > text.lastIndexOf('[END_')) return true;
+  // Distilled model format: <|tool_call> without closing <tool_call|>
+  if (text.lastIndexOf('<|tool_call>') > text.lastIndexOf('<tool_call|>')) return true;
   return false;
 }

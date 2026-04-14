@@ -1,0 +1,170 @@
+2026-04-14 16:09:11,057 WARNING POST /api/benchmarks/run endpoint_id=1 suite_id=5 model_id=gemopus-4-26b-a4b-it
+2026-04-14 16:09:11,070 WARNING Created run 67, returning to frontend
+2026-04-14 16:09:14,983 WARNING GET /api/benchmarks/stream/67 — SSE endpoint hit
+2026-04-14 16:09:14,983 WARNING Endpoint: LM Studio (http://169.254.83.107:1234/v1)
+2026-04-14 16:09:14,988 WARNING Loaded 11 test cases for suite 5
+2026-04-14 16:09:15,191 WARNING OpenAI client created for http://169.254.83.107:1234/v1, model=gemopus-4-26b-a4b-it
+2026-04-14 16:09:15,191 WARNING SSE generator started for run 67
+2026-04-14 16:09:15,191 WARNING DB write connection opened (C:\Projects\LiteBench\backend\litebench.db)
+2026-04-14 16:09:15,197 WARNING Starting run_benchmark_stream for model=gemopus-4-26b-a4b-it, 11 tests
+2026-04-14 16:09:15,197 WARNING Event: started
+2026-04-14 16:09:15,197 WARNING Event: test_start — test: Car wash trick question
+2026-04-14 16:09:15,197 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=200, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:09:16,172 WARNING Model responded in 1.0s, tokens=54
+2026-04-14 16:09:16,172 WARNING Event: test_done — test: Car wash trick question
+2026-04-14 16:09:16,185 WARNING Event: test_start — test: Sheep riddle — all but 9
+2026-04-14 16:09:16,185 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=300, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:09:16,486 WARNING Model responded in 0.3s, tokens=39
+2026-04-14 16:09:16,486 WARNING Event: test_done — test: Sheep riddle — all but 9
+2026-04-14 16:09:16,486 WARNING Event: test_start — test: Elevator logic puzzle
+2026-04-14 16:09:16,486 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=300, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:09:17,399 WARNING Model responded in 0.9s, tokens=149
+2026-04-14 16:09:17,399 WARNING Event: test_done — test: Elevator logic puzzle
+2026-04-14 16:09:17,405 WARNING Event: test_start — test: Flag fake records in customer data
+2026-04-14 16:09:17,406 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1000, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:09:19,993 WARNING Model responded in 2.6s, tokens=405
+2026-04-14 16:09:19,993 WARNING Event: test_done — test: Flag fake records in customer data
+2026-04-14 16:09:19,999 WARNING Event: test_start — test: Spot anomalies in financial data
+2026-04-14 16:09:19,999 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1000, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:09:24,675 WARNING Model responded in 4.7s, tokens=769
+2026-04-14 16:09:24,675 WARNING Event: test_done — test: Spot anomalies in financial data
+2026-04-14 16:09:24,695 WARNING Event: test_start — test: Refuse when answer not in context
+2026-04-14 16:09:24,695 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=200, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:09:24,929 WARNING Model responded in 0.2s, tokens=13
+2026-04-14 16:09:24,929 WARNING Event: test_done — test: Refuse when answer not in context
+2026-04-14 16:09:24,951 WARNING Event: test_start — test: Answer only what context supports
+2026-04-14 16:09:24,951 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=300, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:09:25,316 WARNING Model responded in 0.4s, tokens=45
+2026-04-14 16:09:25,316 WARNING Event: test_done — test: Answer only what context supports
+2026-04-14 16:09:25,329 WARNING Event: test_start — test: Admit uncertainty on obscure facts
+2026-04-14 16:09:25,329 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=600, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:09:26,634 WARNING Model responded in 1.3s, tokens=209
+2026-04-14 16:09:26,637 WARNING Event: test_done — test: Admit uncertainty on obscure facts
+2026-04-14 16:09:26,637 WARNING Event: test_start — test: Question the requirement before executing
+2026-04-14 16:09:26,637 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=800, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:09:31,377 WARNING Model responded in 4.7s, tokens=800
+2026-04-14 16:09:31,377 WARNING Event: test_done — test: Question the requirement before executing
+2026-04-14 16:09:31,385 WARNING Event: test_start — test: Prioritize over flat list
+2026-04-14 16:09:31,385 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1200, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:09:35,800 WARNING Model responded in 4.4s, tokens=737
+2026-04-14 16:09:35,800 WARNING Event: test_done — test: Prioritize over flat list
+2026-04-14 16:09:35,800 WARNING Event: test_start — test: Identify own limitations honestly
+2026-04-14 16:09:35,806 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=800, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:09:39,380 WARNING Model responded in 3.6s, tokens=597
+2026-04-14 16:09:39,380 WARNING Event: test_done — test: Identify own limitations honestly
+2026-04-14 16:09:39,387 WARNING Event: summary
+2026-04-14 16:09:39,388 WARNING Event: done
+2026-04-14 16:09:39,388 WARNING SSE stream ended for run 67
+2026-04-14 16:09:56,206 WARNING POST /api/benchmarks/run endpoint_id=1 suite_id=2 model_id=gemopus-4-26b-a4b-it
+2026-04-14 16:09:56,215 WARNING Created run 68, returning to frontend
+2026-04-14 16:10:03,283 WARNING GET /api/benchmarks/stream/68 — SSE endpoint hit
+2026-04-14 16:10:03,289 WARNING Endpoint: LM Studio (http://169.254.83.107:1234/v1)
+2026-04-14 16:10:03,290 WARNING Loaded 25 test cases for suite 2
+2026-04-14 16:10:03,444 WARNING OpenAI client created for http://169.254.83.107:1234/v1, model=gemopus-4-26b-a4b-it
+2026-04-14 16:10:03,444 WARNING SSE generator started for run 68
+2026-04-14 16:10:03,444 WARNING DB write connection opened (C:\Projects\LiteBench\backend\litebench.db)
+2026-04-14 16:10:03,444 WARNING Starting run_benchmark_stream for model=gemopus-4-26b-a4b-it, 25 tests
+2026-04-14 16:10:03,444 WARNING Event: started
+2026-04-14 16:10:03,444 WARNING Event: test_start — test: Binary tree serialize/deserialize
+2026-04-14 16:10:03,444 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1200, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:10:07,244 WARNING Model responded in 3.8s, tokens=614
+2026-04-14 16:10:07,244 WARNING Event: test_done — test: Binary tree serialize/deserialize
+2026-04-14 16:10:07,252 WARNING Event: test_start — test: Async task scheduler with dependencies
+2026-04-14 16:10:07,252 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1500, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:10:16,128 WARNING Model responded in 8.9s, tokens=1500
+2026-04-14 16:10:16,128 WARNING Event: test_done — test: Async task scheduler with dependencies
+2026-04-14 16:10:16,135 WARNING Event: test_start — test: Generic retry decorator with exponential backoff
+2026-04-14 16:10:16,136 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1200, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:10:22,331 WARNING Model responded in 6.2s, tokens=1053
+2026-04-14 16:10:22,331 WARNING Event: test_done — test: Generic retry decorator with exponential backoff
+2026-04-14 16:10:22,338 WARNING Event: test_start — test: Implement Trie with autocomplete
+2026-04-14 16:10:22,338 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1000, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:10:28,234 WARNING Model responded in 5.9s, tokens=1000
+2026-04-14 16:10:28,234 WARNING Event: test_done — test: Implement Trie with autocomplete
+2026-04-14 16:10:28,239 WARNING Event: test_start — test: Expression parser with operator precedence
+2026-04-14 16:10:28,239 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1500, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:10:35,843 WARNING Model responded in 7.6s, tokens=1282
+2026-04-14 16:10:35,843 WARNING Event: test_done — test: Expression parser with operator precedence
+2026-04-14 16:10:35,849 WARNING Event: test_start — test: TypeScript — Type-safe event emitter
+2026-04-14 16:10:35,850 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1200, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:10:41,025 WARNING Model responded in 5.2s, tokens=866
+2026-04-14 16:10:41,025 WARNING Event: test_done — test: TypeScript — Type-safe event emitter
+2026-04-14 16:10:41,030 WARNING Event: test_start — test: Rust — Thread-safe cache with TTL
+2026-04-14 16:10:41,030 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1500, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:10:48,808 WARNING Model responded in 7.8s, tokens=1315
+2026-04-14 16:10:48,808 WARNING Event: test_done — test: Rust — Thread-safe cache with TTL
+2026-04-14 16:10:48,816 WARNING Event: test_start — test: Go — Concurrent pipeline with channels
+2026-04-14 16:10:48,816 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1500, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:10:56,245 WARNING Model responded in 7.4s, tokens=1252
+2026-04-14 16:10:56,245 WARNING Event: test_done — test: Go — Concurrent pipeline with channels
+2026-04-14 16:10:56,251 WARNING Event: test_start — test: SQL — Advanced analytics query
+2026-04-14 16:10:56,251 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1500, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:11:02,839 WARNING Model responded in 6.6s, tokens=1093
+2026-04-14 16:11:02,839 WARNING Event: test_done — test: SQL — Advanced analytics query
+2026-04-14 16:11:02,847 WARNING Event: test_start — test: Design a plugin system
+2026-04-14 16:11:02,847 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=2000, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:11:14,739 WARNING Model responded in 11.9s, tokens=2000
+2026-04-14 16:11:14,739 WARNING Event: test_done — test: Design a plugin system
+2026-04-14 16:11:14,746 WARNING Event: test_start — test: Design database migration system
+2026-04-14 16:11:14,746 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=3000, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:11:27,800 WARNING Model responded in 13.1s, tokens=2180
+2026-04-14 16:11:27,800 WARNING Event: test_done — test: Design database migration system
+2026-04-14 16:11:27,804 WARNING Event: test_start — test: REST API design review
+2026-04-14 16:11:27,804 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1500, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:11:35,230 WARNING Model responded in 7.4s, tokens=1206
+2026-04-14 16:11:35,230 WARNING Event: test_done — test: REST API design review
+2026-04-14 16:11:35,235 WARNING Event: test_start — test: Find SQL injection vulnerabilities
+2026-04-14 16:11:35,235 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1500, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:11:41,958 WARNING Model responded in 6.7s, tokens=1149
+2026-04-14 16:11:41,958 WARNING Event: test_done — test: Find SQL injection vulnerabilities
+2026-04-14 16:11:41,965 WARNING Event: test_start — test: Auth bypass code audit
+2026-04-14 16:11:41,965 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1500, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:11:49,341 WARNING Model responded in 7.4s, tokens=1212
+2026-04-14 16:11:49,341 WARNING Event: test_done — test: Auth bypass code audit
+2026-04-14 16:11:49,344 WARNING Event: test_start — test: Secure the file upload handler
+2026-04-14 16:11:49,344 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1200, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:11:53,176 WARNING Model responded in 3.8s, tokens=648
+2026-04-14 16:11:53,176 WARNING Event: test_done — test: Secure the file upload handler
+2026-04-14 16:11:53,180 WARNING Event: test_start — test: Edit distance with operation reconstruction
+2026-04-14 16:11:53,180 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=2000, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:12:02,941 WARNING Model responded in 9.8s, tokens=1707
+2026-04-14 16:12:02,942 WARNING Event: test_done — test: Edit distance with operation reconstruction
+2026-04-14 16:12:02,945 WARNING Event: test_start — test: Prove Dijkstra's algorithm correctness
+2026-04-14 16:12:02,945 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=2000, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:12:12,928 WARNING Model responded in 10.0s, tokens=1683
+2026-04-14 16:12:12,928 WARNING Event: test_done — test: Prove Dijkstra's algorithm correctness
+2026-04-14 16:12:12,933 WARNING Event: test_start — test: Analyze concurrent code for race conditions
+2026-04-14 16:12:12,933 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1500, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:12:18,829 WARNING Model responded in 5.9s, tokens=977
+2026-04-14 16:12:18,829 WARNING Event: test_done — test: Analyze concurrent code for race conditions
+2026-04-14 16:12:18,836 WARNING Event: test_start — test: Performance review — N+1 queries
+2026-04-14 16:12:18,836 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1500, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:12:27,053 WARNING Model responded in 8.2s, tokens=1372
+2026-04-14 16:12:27,053 WARNING Event: test_done — test: Performance review — N+1 queries
+2026-04-14 16:12:27,059 WARNING Event: test_start — test: Memory leak review
+2026-04-14 16:12:27,059 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1500, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:12:35,617 WARNING Model responded in 8.6s, tokens=1410
+2026-04-14 16:12:35,617 WARNING Event: test_done — test: Memory leak review
+2026-04-14 16:12:35,622 WARNING Event: test_start — test: Error handling review
+2026-04-14 16:12:35,622 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1800, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:12:44,566 WARNING Model responded in 8.9s, tokens=1507
+2026-04-14 16:12:44,566 WARNING Event: test_done — test: Error handling review
+2026-04-14 16:12:44,573 WARNING Event: test_start — test: YAML config generation with exact schema
+2026-04-14 16:12:44,573 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=800, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:12:45,830 WARNING Model responded in 1.3s, tokens=194
+2026-04-14 16:12:45,830 WARNING Event: test_done — test: YAML config generation with exact schema
+2026-04-14 16:12:45,833 WARNING Event: test_start — test: Multi-format response
+2026-04-14 16:12:45,833 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1000, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:12:47,157 WARNING Model responded in 1.3s, tokens=220
+2026-04-14 16:12:47,157 WARNING Event: test_done — test: Multi-format response
+2026-04-14 16:12:47,160 WARNING Event: test_start — test: Code with exact naming conventions
+2026-04-14 16:12:47,160 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=1500, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:12:51,936 WARNING Model responded in 4.8s, tokens=824
+2026-04-14 16:12:51,937 WARNING Event: test_done — test: Code with exact naming conventions
+2026-04-14 16:12:51,941 WARNING Event: test_start — test: Constrained commit message writing
+2026-04-14 16:12:51,941 WARNING Calling model gemopus-4-26b-a4b-it (max_tokens=400, media=none, raw=False, base_url=http://169.254.83.107:1234/v1/)
+2026-04-14 16:12:52,559 WARNING Model responded in 0.6s, tokens=83
+2026-04-14 16:12:52,560 WARNING Event: test_done — test: Constrained commit message writing
+2026-04-14 16:12:52,563 WARNING Event: summary
+2026-04-14 16:12:52,565 WARNING Event: done
+2026-04-14 16:12:52,566 WARNING SSE stream ended for run 68

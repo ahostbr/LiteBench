@@ -23,6 +23,7 @@ interface AgentChatState {
   // Message management
   addMessage(conversationId: string, message: Omit<AgentChatMessage, 'id' | 'timestamp'>): AgentChatMessage;
   appendStreamDelta(conversationId: string, content: string): void;
+  replaceStreamContent(conversationId: string, content: string): void;
   finalizeStreamMessage(conversationId: string, fullContent: string, toolCalls?: AgentToolCall[]): void;
 
   // Tool call management
@@ -132,6 +133,25 @@ export const useAgentChatStore = create<AgentChatState>()(
               messages: c.messages.map((m) =>
                 m.id === streamingMessageId
                   ? { ...m, content: m.content + content }
+                  : m,
+              ),
+            };
+          }),
+        }));
+      },
+
+      replaceStreamContent(conversationId, content) {
+        const { streamingMessageId } = get();
+        if (!streamingMessageId) return;
+        set((s) => ({
+          conversations: s.conversations.map((c) => {
+            if (c.id !== conversationId) return c;
+            return {
+              ...c,
+              updatedAt: Date.now(),
+              messages: c.messages.map((m) =>
+                m.id === streamingMessageId
+                  ? { ...m, content }
                   : m,
               ),
             };

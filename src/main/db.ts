@@ -377,6 +377,14 @@ export function initializeDatabase(): string {
     updateTokenStmt.run(newMax, testId, newMax);
   }
 
+  // Auto-seed the agent suite if it doesn't exist (needed for Agent Benchmark panel)
+  const agentSuiteExists = ensureDb()
+    .prepare("SELECT id FROM test_suites WHERE name = 'Agent Suite'")
+    .get();
+  if (!agentSuiteExists) {
+    seedAgent();
+  }
+
   return dbPath;
 }
 

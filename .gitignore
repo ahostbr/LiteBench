@@ -23,3 +23,8 @@ Thumbs.db
 # Env
 .env
 .env.local
+/e2e/screenshots
+/screenshots
+/.liteeditor
+/test-results
+/e2e/screenshots

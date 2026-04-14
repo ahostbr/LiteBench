@@ -279,6 +279,7 @@ export interface AgentConversation {
 
 export type AgentStreamEvent =
   | { type: 'text_delta'; content: string }
+  | { type: 'text_replace'; content: string }
   | { type: 'tool_call_start'; toolCall: AgentToolCall }
   | { type: 'tool_call_done'; toolCallId: string; result?: unknown; error?: string }
   | { type: 'done' }

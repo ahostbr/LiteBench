@@ -91,6 +91,10 @@ export function AgentPanel() {
               accumulatedContent += event.content;
               store.appendStreamDelta(convId, event.content);
               break;
+            case 'text_replace':
+              accumulatedContent = event.content;
+              store.replaceStreamContent(convId, event.content);
+              break;
             case 'tool_call_start':
               store.addToolCall(convId, event.toolCall);
               break;
