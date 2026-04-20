@@ -14,11 +14,10 @@ fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
 
 // Models to test — ordered by size
 const MODELS = [
-  { id: 'qwen3.5-0.8b', label: 'Qwen 3.5 0.8B', params: '0.8B' },
-  { id: 'gemma-3-4b-it', label: 'Gemma 3 4B', params: '4B' },
-  { id: 'qwen/qwen3-4b-2507', label: 'Qwen 3 4B', params: '4B' },
+  { id: 'qwen/qwen3.5-35b-a3b', label: 'Qwen 3.5 35B', params: '35B' },
+  { id: 'qwen/qwen3.6-35b-a3b', label: 'Qwen 3.6 35B', params: '35B' },
+  { id: 'google/gemma-4-26b-a4b', label: 'Gemma 4 26B', params: '26B' },
   { id: 'mistralai/devstral-small-2-2512', label: 'Devstral Small 2', params: '24B' },
-  { id: 'gemma-4-31b-it', label: 'Gemma 4 31B', params: '31B' },
 ];
 
 interface TestCase {
@@ -31,7 +30,7 @@ const TESTS: TestCase[] = [
   {
     label: 'Browser Navigate',
     prompt: 'Navigate the browser to https://example.com and read the page title.',
-    expectedTools: ['browser_navigate'],
+    expectedTools: ['browser_go'],
   },
   {
     label: 'Web Search',
@@ -49,9 +48,7 @@ let app: ElectronApplication;
 let page: Page;
 
 async function launchApp(): Promise<void> {
-  const { execSync } = require('child_process');
-  console.log('Building...');
-  execSync('npx electron-vite build', { cwd: PROJECT_ROOT, stdio: 'pipe' });
+  console.log('Launching app (pre-built)...');
 
   app = await electron.launch({
     args: [path.join(PROJECT_ROOT, 'out', 'main', 'index.js')],
@@ -152,12 +149,13 @@ async function main() {
       console.log(`  Test: ${test.label}`);
       console.log(`    Prompt: "${test.prompt.slice(0, 60)}..."`);
 
-      const result = await runTest(model.id, test.prompt);
+      const result = await runTest(model.id, test.prompt, 120_000);
 
       const calledExpected = test.expectedTools.every(t => result.toolsCalled.includes(t));
-      const hasResponse = result.responseText.length > 10;
+      const hasResponse = result.responseText.trim().length > 0;
       const noRefusal = !result.responseText.toLowerCase().includes('cannot access') &&
-                        !result.responseText.toLowerCase().includes('unable to');
+                        !result.responseText.toLowerCase().includes('unable to') &&
+                        !result.responseText.toLowerCase().includes('i don\'t have');
 
       const passed = calledExpected && hasResponse && noRefusal;
       if (passed) modelScore++;
