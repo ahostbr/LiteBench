@@ -19,8 +19,38 @@ export function TestCaseForm({ initial, onSubmit, onCancel }: TestCaseFormProps)
   const [evalJson, setEvalJson] = useState(initial?.eval_json ?? false);
   const [evalSentenceCount, setEvalSentenceCount] = useState(initial?.eval_sentence_count?.toString() ?? '');
   const [maxTokens, setMaxTokens] = useState(initial?.max_tokens?.toString() ?? '600');
+  const [responseSchema, setResponseSchema] = useState(
+    initial?.response_schema && Object.keys(initial.response_schema).length > 0
+      ? JSON.stringify(initial.response_schema, null, 2)
+      : '',
+  );
+  const [schemaError, setSchemaError] = useState('');
+  const [evalMode, setEvalMode] = useState<'keyword' | 'schema' | 'both'>(initial?.eval_mode ?? 'keyword');
+
+  const handleSchemaChange = (value: string) => {
+    setResponseSchema(value);
+    if (!value.trim()) {
+      setSchemaError('');
+      return;
+    }
+    try {
+      JSON.parse(value);
+      setSchemaError('');
+    } catch {
+      setSchemaError('Invalid JSON');
+    }
+  };
 
   const handleSubmit = () => {
+    if (schemaError) return;
+    let parsedSchema = {};
+    if (responseSchema.trim()) {
+      try {
+        parsedSchema = JSON.parse(responseSchema);
+      } catch {
+        return;
+      }
+    }
     onSubmit({
       test_id: testId,
       category,
@@ -31,6 +61,8 @@ export function TestCaseForm({ initial, onSubmit, onCancel }: TestCaseFormProps)
       eval_anti: evalAnti.split(',').map((s) => s.trim()).filter(Boolean),
       eval_json: evalJson,
       eval_sentence_count: evalSentenceCount ? parseInt(evalSentenceCount) : null,
+      response_schema: parsedSchema,
+      eval_mode: evalMode,
       max_tokens: parseInt(maxTokens) || 600,
     });
   };
@@ -98,8 +130,34 @@ export function TestCaseForm({ initial, onSubmit, onCancel }: TestCaseFormProps)
         </div>
       </div>
 
+      <div>
+        <label className="text-xs text-zinc-500 mb-1 block">Response Schema (JSON)</label>
+        <textarea
+          className={`${inputClass} h-24 resize-none font-mono text-xs ${schemaError ? 'border-red-500 ring-1 ring-red-500' : ''}`}
+          value={responseSchema}
+          onChange={(e) => handleSchemaChange(e.target.value)}
+          placeholder='{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}'
+        />
+        {schemaError && <span className="text-xs text-red-400 mt-0.5 block">{schemaError}</span>}
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="text-xs text-zinc-500 mb-1 block">Eval Mode</label>
+          <select
+            className={inputClass}
+            value={evalMode}
+            onChange={(e) => setEvalMode(e.target.value as 'keyword' | 'schema' | 'both')}
+          >
+            <option value="keyword">Keyword</option>
+            <option value="schema">Schema</option>
+            <option value="both">Both</option>
+          </select>
+        </div>
+      </div>
+
       <div className="flex gap-2 pt-2">
-        <Button size="sm" onClick={handleSubmit}>{initial ? 'Update' : 'Add Test'}</Button>
+        <Button size="sm" onClick={handleSubmit} disabled={!!schemaError}>{initial ? 'Update' : 'Add Test'}</Button>
         <Button size="sm" variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>
     </div>

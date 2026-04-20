@@ -39,6 +39,8 @@ export interface TestCase {
   eval_sentence_count: number | null;
   eval_regex: string[];
   eval_min_length: number | null;
+  response_schema: Record<string, unknown>;
+  eval_mode: 'keyword' | 'schema' | 'both';
   max_tokens: number;
   sort_order: number;
   is_agent_task: boolean;
@@ -72,6 +74,8 @@ export interface TestCaseCreateInput {
   eval_sentence_count?: number | null;
   eval_regex?: string[];
   eval_min_length?: number | null;
+  response_schema?: Record<string, unknown>;
+  eval_mode?: 'keyword' | 'schema' | 'both';
   max_tokens?: number;
   sort_order?: number;
 }
@@ -88,6 +92,8 @@ export interface TestCaseUpdateInput {
   eval_sentence_count?: number | null;
   eval_regex?: string[];
   eval_min_length?: number | null;
+  response_schema?: Record<string, unknown>;
+  eval_mode?: 'keyword' | 'schema' | 'both';
   max_tokens?: number;
   sort_order?: number;
 }
