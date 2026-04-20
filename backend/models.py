@@ -89,12 +89,37 @@ class TestCaseOut(BaseModel):
 
 # ── Benchmark Runs / Results ──────────────────────────────────────────────
 
+class ModelProfileCreate(BaseModel):
+    model_pattern: str
+    name: str
+    description: str = ""
+    base_system_prompt: str = ""
+    prompt_overrides: dict[str, str] = {}
+
+class ModelProfileUpdate(BaseModel):
+    model_pattern: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    base_system_prompt: Optional[str] = None
+    prompt_overrides: Optional[dict[str, str]] = None
+
+class ModelProfileOut(BaseModel):
+    id: int
+    model_pattern: str
+    name: str
+    description: str
+    base_system_prompt: str
+    prompt_overrides: dict[str, str]
+    created_at: str
+
+
 class BenchmarkRunRequest(BaseModel):
     endpoint_id: int
     suite_id: int
     model_id: str
     model_name: str
     is_thinking: bool = False
+    mode: str = "baseline"
 
 class BenchmarkRunOut(BaseModel):
     id: int

@@ -59,6 +59,7 @@ def _row_to_run(row: aiosqlite.Row) -> dict:
         "model_id": row["model_id"],
         "model_name": row["model_name"],
         "is_thinking": bool(row["is_thinking"]),
+        "mode": row["mode"] if "mode" in row.keys() else "baseline",
         "status": row["status"],
         "avg_score": row["avg_score"],
         "avg_tps": row["avg_tps"],
@@ -91,14 +92,15 @@ async def start_benchmark(body: BenchmarkRunRequest, db: aiosqlite.Connection = 
 
     # Create run record
     now = datetime.utcnow().isoformat()
+    mode = body.mode if body.mode in ("baseline", "trained") else "baseline"
     cursor = await db.execute(
-        """INSERT INTO benchmark_runs (endpoint_id, suite_id, model_id, model_name, is_thinking, status, started_at)
-           VALUES (?, ?, ?, ?, ?, 'running', ?)""",
-        (body.endpoint_id, body.suite_id, body.model_id, body.model_name, int(body.is_thinking), now),
+        """INSERT INTO benchmark_runs (endpoint_id, suite_id, model_id, model_name, is_thinking, mode, status, started_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'running', ?)""",
+        (body.endpoint_id, body.suite_id, body.model_id, body.model_name, int(body.is_thinking), mode, now),
     )
     await db.commit()
     run_id = cursor.lastrowid
-    log.warning(f"Created run {run_id}, returning to frontend")
+    log.warning(f"Created run {run_id} (mode={mode}), returning to frontend")
 
     return {"run_id": run_id, "status": "running"}
 
@@ -119,14 +121,36 @@ async def stream_benchmark(run_id: int, db: aiosqlite.Connection = Depends(get_d
     cases_rows = await cases_cursor.fetchall()
     log.warning(f"Loaded {len(cases_rows)} test cases for suite {run_row['suite_id']}")
 
+    # Load model profile if mode=trained
+    mode = run_row["mode"] if "mode" in run_row.keys() else "baseline"
+    profile = None
+    if mode == "trained":
+        from routers.profiles import match_profile
+        profiles_cursor = await db.execute("SELECT * FROM model_profiles")
+        profiles_rows = await profiles_cursor.fetchall()
+        all_profiles = [{"model_pattern": p["model_pattern"], "base_system_prompt": p["base_system_prompt"],
+                         "prompt_overrides": json.loads(p["prompt_overrides"])} for p in profiles_rows]
+        profile = match_profile(run_row["model_id"], all_profiles)
+        if profile:
+            log.warning(f"Using trained profile for {run_row['model_id']}: {len(profile['prompt_overrides'])} overrides")
+
     test_cases = []
     for r in cases_rows:
+        system_prompt = r["system_prompt"]
+        # Apply profile overrides: per-test_id override > base_system_prompt > default
+        if profile:
+            test_id = r["test_id"]
+            if test_id in profile["prompt_overrides"]:
+                system_prompt = profile["prompt_overrides"][test_id]
+            elif profile["base_system_prompt"]:
+                system_prompt = profile["base_system_prompt"] + "\n\n" + system_prompt
+
         test_cases.append({
             "id": r["id"],
             "test_id": r["test_id"],
             "category": r["category"],
             "name": r["name"],
-            "system_prompt": r["system_prompt"],
+            "system_prompt": system_prompt,
             "user_prompt": r["user_prompt"],
             "eval_keywords": json.loads(r["eval_keywords"]),
             "eval_anti": json.loads(r["eval_anti"]),
@@ -139,7 +163,7 @@ async def stream_benchmark(run_id: int, db: aiosqlite.Connection = Depends(get_d
 
     client = OpenAI(base_url=ep["base_url"], api_key=ep["api_key"], timeout=120.0)
     _active_runs[run_id] = {"cancelled": False}
-    log.warning(f"OpenAI client created for {ep['base_url']}, model={run_row['model_id']}")
+    log.warning(f"OpenAI client created for {ep['base_url']}, model={run_row['model_id']} (mode={mode})")
 
     async def event_generator():
         log.warning(f"SSE generator started for run {run_id}")

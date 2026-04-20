@@ -44,12 +44,23 @@ CREATE TABLE IF NOT EXISTS benchmark_runs (
     model_id TEXT NOT NULL,
     model_name TEXT NOT NULL,
     is_thinking INTEGER NOT NULL DEFAULT 0,
+    mode TEXT NOT NULL DEFAULT 'baseline',
     status TEXT NOT NULL DEFAULT 'pending',
     avg_score REAL,
     avg_tps REAL,
     total_time_s REAL,
     started_at TEXT,
     completed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS model_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_pattern TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    base_system_prompt TEXT NOT NULL DEFAULT '',
+    prompt_overrides TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS test_results (

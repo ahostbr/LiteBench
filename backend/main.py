@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import CORS_ORIGINS
 from db import init_db
-from routers import endpoints, models_discovery, tests, benchmarks
+from routers import endpoints, models_discovery, tests, benchmarks, profiles
 
 
 @asynccontextmanager
@@ -28,6 +28,23 @@ async def lifespan(app: FastAPI):
             await db.execute("SELECT eval_min_length FROM test_cases LIMIT 1")
         except Exception:
             await db.execute("ALTER TABLE test_cases ADD COLUMN eval_min_length INTEGER")
+
+        # Migrate: add mode column to benchmark_runs
+        try:
+            await db.execute("SELECT mode FROM benchmark_runs LIMIT 1")
+        except Exception:
+            await db.execute("ALTER TABLE benchmark_runs ADD COLUMN mode TEXT NOT NULL DEFAULT 'baseline'")
+
+        # Migrate: create model_profiles table
+        await db.execute("""CREATE TABLE IF NOT EXISTS model_profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model_pattern TEXT NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            base_system_prompt TEXT NOT NULL DEFAULT '',
+            prompt_overrides TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )""")
 
         # Bump max_tokens for tight default test cases
         token_bumps = {
@@ -59,6 +76,7 @@ app.include_router(endpoints.router)
 app.include_router(models_discovery.router)
 app.include_router(tests.router)
 app.include_router(benchmarks.router)
+app.include_router(profiles.router)
 
 
 @app.get("/api/health")
