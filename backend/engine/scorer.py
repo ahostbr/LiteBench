@@ -8,14 +8,16 @@ def score_response(test: dict, response: str) -> dict:
     cleaned, thinking = strip_thinking(response)
     had_thinking = len(thinking) > 50
 
-    # Use cleaned output for scoring (the actual answer, not the reasoning)
+    # Use full response (including thinking) for keyword matching —
+    # agent tasks emit tool calls inside reasoning blocks
     eval_text = cleaned if cleaned else response
+    full_lower = response.lower()
     eval_lower = eval_text.lower()
 
-    # Keyword hits
+    # Keyword hits — search full response so thinking-phase tool calls count
     hits, misses = [], []
     for kw in test.get("eval_keywords", []):
-        if kw.lower() in eval_lower:
+        if kw.lower() in full_lower:
             hits.append(kw)
         else:
             misses.append(kw)
@@ -74,8 +76,9 @@ def score_response(test: dict, response: str) -> dict:
             sentence_bonus = 0.1
 
     # Truncation penalty — if model was still thinking when tokens ran out
+    # But don't penalize if all keywords were found (model completed the task in thinking)
     truncation_penalty = 0
-    if not cleaned and had_thinking:
+    if not cleaned and had_thinking and len(misses) > 0:
         truncation_penalty = 0.5
 
     # Min length penalty — penalize terse answers on tests requiring detail

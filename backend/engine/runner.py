@@ -64,7 +64,7 @@ def call_model(client: OpenAI, model_id: str, system: str, prompt: str, max_toke
                is_thinking: bool = False, media_type: str | None = None,
                media_path: str | None = None) -> dict:
     """Call a model and return response + metrics."""
-    effective_max = max_tokens * 5 if is_thinking else max_tokens
+    effective_max = 32768 if is_thinking else max_tokens
 
     user_content = _build_user_content(prompt, media_type, media_path)
     use_raw = media_type is not None and media_path is not None and os.path.exists(media_path)
@@ -79,7 +79,13 @@ def call_model(client: OpenAI, model_id: str, system: str, prompt: str, max_toke
 
         if use_raw:
             raw = _call_raw_http(str(client.base_url), model_id, messages, effective_max, 0.3)
-            content = raw["choices"][0]["message"].get("content", "")
+            msg = raw["choices"][0]["message"]
+            content = msg.get("content", "") or ""
+            reasoning = msg.get("reasoning_content", "") or ""
+            if reasoning and not content:
+                content = f"<think>{reasoning}</think>"
+            elif reasoning and content:
+                content = f"<think>{reasoning}</think>\n{content}"
             usage_d = raw.get("usage", {})
             elapsed = time.perf_counter() - t0
             return {
@@ -101,7 +107,13 @@ def call_model(client: OpenAI, model_id: str, system: str, prompt: str, max_toke
         resp = client.chat.completions.create(**kwargs)
         elapsed = time.perf_counter() - t0
         log.warning(f"Model responded in {elapsed:.1f}s, tokens={resp.usage.completion_tokens if resp.usage else '?'}")
-        content = resp.choices[0].message.content or ""
+        msg = resp.choices[0].message
+        content = msg.content or ""
+        reasoning = getattr(msg, "reasoning_content", None) or ""
+        if reasoning and not content:
+            content = f"<think>{reasoning}</think>"
+        elif reasoning and content:
+            content = f"<think>{reasoning}</think>\n{content}"
         usage = resp.usage
         return {
             "content": content,
