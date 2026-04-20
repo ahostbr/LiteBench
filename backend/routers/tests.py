@@ -231,6 +231,8 @@ def _row_to_case(row: aiosqlite.Row) -> dict:
         "eval_sentence_count": row["eval_sentence_count"],
         "eval_regex": json.loads(row["eval_regex"]) if row["eval_regex"] else [],
         "eval_min_length": row["eval_min_length"],
+        "response_schema": json.loads(row["response_schema"]) if "response_schema" in row.keys() and row["response_schema"] else {},
+        "eval_mode": row["eval_mode"] if "eval_mode" in row.keys() else "keyword",
         "max_tokens": row["max_tokens"],
         "sort_order": row["sort_order"],
     }
@@ -288,14 +290,15 @@ async def create_case(suite_id: int, body: TestCaseCreate, db: aiosqlite.Connect
     cursor = await db.execute(
         """INSERT INTO test_cases (suite_id, test_id, category, name, system_prompt, user_prompt,
            eval_keywords, eval_anti, eval_json, eval_sentence_count, eval_regex, eval_min_length,
-           max_tokens, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           response_schema, eval_mode, max_tokens, sort_order)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             suite_id, body.test_id, body.category, body.name,
             body.system_prompt, body.user_prompt,
             json.dumps(body.eval_keywords), json.dumps(body.eval_anti),
             int(body.eval_json), body.eval_sentence_count,
             json.dumps(body.eval_regex), body.eval_min_length,
+            json.dumps(body.response_schema), body.eval_mode,
             body.max_tokens, body.sort_order,
         ),
     )
@@ -321,6 +324,8 @@ async def update_case(suite_id: int, case_id: int, body: TestCaseUpdate, db: aio
         updates["eval_json"] = int(updates["eval_json"])
     if "eval_regex" in updates:
         updates["eval_regex"] = json.dumps(updates["eval_regex"])
+    if "response_schema" in updates:
+        updates["response_schema"] = json.dumps(updates["response_schema"])
     if updates:
         set_clause = ", ".join(f"{k} = ?" for k in updates)
         await db.execute(f"UPDATE test_cases SET {set_clause} WHERE id = ?", (*updates.values(), case_id))
@@ -358,14 +363,15 @@ async def seed_defaults(db: aiosqlite.Connection = Depends(get_db)):
         await db.execute(
             """INSERT INTO test_cases (suite_id, test_id, category, name, system_prompt, user_prompt,
                eval_keywords, eval_anti, eval_json, eval_sentence_count, eval_regex, eval_min_length,
-               max_tokens, sort_order)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               response_schema, eval_mode, max_tokens, sort_order)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 suite_id, test["test_id"], test["category"], test["name"],
                 test["system_prompt"], test["user_prompt"],
                 json.dumps(test.get("eval_keywords", [])), json.dumps(test.get("eval_anti", [])),
                 int(test.get("eval_json", False)), test.get("eval_sentence_count"),
                 json.dumps(test.get("eval_regex", [])), test.get("eval_min_length"),
+                json.dumps(test.get("response_schema", {})), test.get("eval_mode", "keyword"),
                 test["max_tokens"], i,
             ),
         )
@@ -390,14 +396,15 @@ async def _seed_suite(db: aiosqlite.Connection, name: str, description: str, tes
         await db.execute(
             """INSERT INTO test_cases (suite_id, test_id, category, name, system_prompt, user_prompt,
                eval_keywords, eval_anti, eval_json, eval_sentence_count, eval_regex, eval_min_length,
-               max_tokens, sort_order)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               response_schema, eval_mode, max_tokens, sort_order)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 suite_id, test["test_id"], test["category"], test["name"],
                 test["system_prompt"], test["user_prompt"],
                 json.dumps(test.get("eval_keywords", [])), json.dumps(test.get("eval_anti", [])),
                 int(test.get("eval_json", False)), test.get("eval_sentence_count"),
                 json.dumps(test.get("eval_regex", [])), test.get("eval_min_length"),
+                json.dumps(test.get("response_schema", {})), test.get("eval_mode", "keyword"),
                 test["max_tokens"], i,
             ),
         )

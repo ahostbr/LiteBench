@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS test_cases (
     eval_sentence_count INTEGER,
     eval_regex TEXT NOT NULL DEFAULT '[]',
     eval_min_length INTEGER,
+    response_schema TEXT NOT NULL DEFAULT '{}',
+    eval_mode TEXT NOT NULL DEFAULT 'keyword',
     max_tokens INTEGER NOT NULL DEFAULT 600,
     sort_order INTEGER NOT NULL DEFAULT 0
 );

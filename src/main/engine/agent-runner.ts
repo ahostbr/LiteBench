@@ -92,6 +92,9 @@ export async function streamAgentChat(
     ...convertToOpenAIMessages(messages),
   ];
 
+  // Track previous tool calls to detect retry loops
+  const previousCallSignatures = new Set<string>();
+
   for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
     if (signal.aborted) {
       onEvent({ type: 'error', message: 'Cancelled' });
@@ -108,7 +111,7 @@ export async function streamAgentChat(
         messages: conversation,
         tools: useNativeTools ? toolSchemas : undefined,
         tool_choice: useNativeTools ? 'auto' : undefined,
-        temperature: small ? 0.3 : undefined,
+        temperature: enableTools ? 0 : (small ? 0.3 : undefined),
         stream: true,
       });
     } catch (error) {
@@ -250,6 +253,12 @@ export async function streamAgentChat(
 
     // No tool calls (native or XML) — we're done
     if (pendingToolCalls.size === 0) {
+      // If response is empty/whitespace after tool results, nudge the model
+      if (iteration > 0 && assistantContent.trim().length < 5) {
+        conversation.push({ role: 'assistant', content: assistantContent || '' });
+        conversation.push({ role: 'user', content: 'Now provide your final answer based on the tool results above. Include the specific data returned.' });
+        continue;
+      }
       onEvent({ type: 'done' });
       cleanupBrowserSession(browserKey);
       return;
@@ -258,6 +267,24 @@ export async function streamAgentChat(
     // Has tool calls — execute them and loop
     if (finishReason !== 'tool_calls' && finishReason !== 'stop') {
       // Unexpected finish but we have pending tool calls — proceed anyway
+    }
+
+    // Dedup: detect retry loops (same tool + same args as a previous iteration)
+    const currentSignatures = [...pendingToolCalls.values()].map(
+      (tc) => `${tc.name}::${tc.arguments}`,
+    );
+    const allDuplicates = currentSignatures.every((sig) => previousCallSignatures.has(sig));
+    if (allDuplicates && currentSignatures.length > 0) {
+      // Model is stuck in a retry loop — force-stop and emit what we have
+      if (assistantContent.trim()) {
+        onEvent({ type: 'text_delta', content: '' });
+      }
+      onEvent({ type: 'done' });
+      cleanupBrowserSession(browserKey);
+      return;
+    }
+    for (const sig of currentSignatures) {
+      previousCallSignatures.add(sig);
     }
 
     // Build the assistant message with tool_calls to append to conversation
@@ -269,9 +296,29 @@ export async function streamAgentChat(
       try {
         parsedArgs = pending.arguments ? JSON.parse(pending.arguments) : {};
       } catch {
-        // Malformed JSON from model — pass empty args so the tool can return a helpful error
         console.warn(`[agent-runner] Malformed JSON args for ${pending.name}: ${pending.arguments?.substring(0, 100)}`);
         parsedArgs = {};
+      }
+
+      // Fix empty tool args — some models (Qwen 3.5) call tools with {} args
+      if (Object.keys(parsedArgs).length === 0 && pending.name) {
+        const lastUserMsg = [...conversation].reverse().find((m) => m.role === 'user');
+        const userText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
+
+        if (pending.name === 'sandbox') {
+          const codeMatch = userText.match(/```(\w+)?\s*\n?([\s\S]*?)```/) ||
+            userText.match(/code.*?:\s*(.+)/i);
+          const code = codeMatch?.[2] || codeMatch?.[1] || userText.replace(/^.*?:\s*/, '');
+          parsedArgs = { action: 'execute', code: code.trim(), language: 'python' };
+        } else if (pending.name === 'web_search') {
+          const queryMatch = userText.match(/search.*?(?:for|about)\s+["""](.+?)["""]/i) ||
+            userText.match(/search.*?(?:for|about)\s+(.+?)(?:\.|$)/i);
+          parsedArgs = { query: queryMatch?.[1]?.trim() || userText.trim() };
+        } else if (pending.name === 'browser_go') {
+          const urlMatch = userText.match(/(https?:\/\/[^\s]+)/);
+          parsedArgs = { action: 'go', url: urlMatch?.[1] || 'https://example.com' };
+        }
+        console.warn(`[agent-runner] Fixed empty ${pending.name} args → ${JSON.stringify(parsedArgs).substring(0, 120)}`);
       }
 
       assistantToolCalls.push({

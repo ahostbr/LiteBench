@@ -46,6 +46,16 @@ async def lifespan(app: FastAPI):
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )""")
 
+        # Migrate: add response_schema and eval_mode columns to test_cases
+        try:
+            await db.execute("SELECT response_schema FROM test_cases LIMIT 1")
+        except Exception:
+            await db.execute("ALTER TABLE test_cases ADD COLUMN response_schema TEXT NOT NULL DEFAULT '{}'")
+        try:
+            await db.execute("SELECT eval_mode FROM test_cases LIMIT 1")
+        except Exception:
+            await db.execute("ALTER TABLE test_cases ADD COLUMN eval_mode TEXT NOT NULL DEFAULT 'keyword'")
+
         # Bump max_tokens for tight default test cases
         token_bumps = {
             "codegen-2": 800,

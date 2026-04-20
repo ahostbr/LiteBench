@@ -157,6 +157,8 @@ async def stream_benchmark(run_id: int, db: aiosqlite.Connection = Depends(get_d
             "eval_json": bool(r["eval_json"]),
             "eval_sentence_count": r["eval_sentence_count"],
             "max_tokens": r["max_tokens"],
+            "response_schema": json.loads(r["response_schema"]) if "response_schema" in r.keys() and r["response_schema"] else {},
+            "eval_mode": r["eval_mode"] if "eval_mode" in r.keys() else "keyword",
             "media_type": r["media_type"] if "media_type" in r.keys() else None,
             "media_path": r["media_path"] if "media_path" in r.keys() else None,
         })

@@ -14,10 +14,7 @@ fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
 
 // Models to test — ordered by size
 const MODELS = [
-  { id: 'qwen/qwen3.5-35b-a3b', label: 'Qwen 3.5 35B', params: '35B' },
-  { id: 'qwen/qwen3.6-35b-a3b', label: 'Qwen 3.6 35B', params: '35B' },
-  { id: 'google/gemma-4-26b-a4b', label: 'Gemma 4 26B', params: '26B' },
-  { id: 'mistralai/devstral-small-2-2512', label: 'Devstral Small 2', params: '24B' },
+  { id: 'qwen3.5-27b-claude-4.6-opus-reasoning-distilled', label: 'Qwen 3.5 27B Opus Distill', params: '27B' },
 ];
 
 interface TestCase {
@@ -118,6 +115,14 @@ async function runTest(modelId: string, prompt: string, timeoutMs = 60_000): Pro
 
     return {
       toolsCalled: events.filter(e => e.type === 'tool_call_start').map(e => e.toolCall?.name || '?'),
+      toolDetails: events.filter(e => e.type === 'tool_call_start').map(e => ({
+        name: e.toolCall?.name,
+        args: e.toolCall?.arguments ?? e.toolCall?.args ?? null,
+      })),
+      toolResults: events.filter(e => e.type === 'tool_result').map(e => ({
+        name: e.toolName ?? '?',
+        result: typeof e.result === 'string' ? e.result.slice(0, 200) : JSON.stringify(e.result)?.slice(0, 200),
+      })),
       responseText: events.filter(e => e.type === 'text_delta').map(e => e.content).join(''),
       error: events.find(e => e.type === 'error')?.message || null,
       conversationId,
@@ -167,6 +172,15 @@ async function main() {
       console.log(`    No refusal: ${noRefusal ? '✅' : '❌'}`);
       console.log(`    Time: ${(result.elapsed / 1000).toFixed(1)}s`);
       console.log(`    Result: ${passed ? '✅ PASS' : '❌ FAIL'}`);
+      if (!passed && (result as any).toolDetails?.length) {
+        console.log(`    --- DEBUG ---`);
+        for (const td of (result as any).toolDetails) {
+          console.log(`    Call: ${td.name}(${JSON.stringify(td.args)?.slice(0, 150)})`);
+        }
+        for (const tr of (result as any).toolResults ?? []) {
+          console.log(`    Result[${tr.name}]: ${tr.result?.slice(0, 150) ?? 'null'}`);
+        }
+      }
       console.log();
 
       results.push({

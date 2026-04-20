@@ -87,7 +87,25 @@ def score_response(test: dict, response: str) -> dict:
     if eval_min_length and len(eval_text) < eval_min_length:
         length_penalty = 0.3
 
-    final_score = min(1.0, max(0, base_score - anti_penalty + json_bonus + sentence_bonus - truncation_penalty - length_penalty))
+    keyword_final = min(1.0, max(0, base_score - anti_penalty + json_bonus + sentence_bonus - truncation_penalty - length_penalty))
+
+    # Schema validation scoring
+    eval_mode = test.get("eval_mode", "keyword")
+    response_schema = test.get("response_schema", {})
+    schema_score = 0.0
+    schema_errors = []
+
+    if eval_mode in ("schema", "both") and response_schema and response_schema != {}:
+        schema_result = _validate_schema(eval_text, response_schema)
+        schema_score = schema_result["score"]
+        schema_errors = schema_result["errors"]
+
+    if eval_mode == "keyword":
+        final_score = keyword_final
+    elif eval_mode == "schema":
+        final_score = schema_score
+    else:  # both — take minimum (Sentinel: explicit combination)
+        final_score = min(keyword_final, schema_score) if response_schema and response_schema != {} else keyword_final
 
     return {
         "keyword_score": round(keyword_score, 2),
@@ -95,7 +113,53 @@ def score_response(test: dict, response: str) -> dict:
         "keyword_misses": misses,
         "violations": violations,
         "final_score": round(final_score, 2),
+        "schema_score": round(schema_score, 2),
+        "schema_errors": schema_errors,
         "had_thinking": had_thinking,
         "thinking_tokens_approx": len(thinking.split()) if thinking else 0,
         "answer_length": len(cleaned),
     }
+
+
+def _validate_schema(response_text: str, schema: dict) -> dict:
+    """Validate a response against a JSON schema. Returns score 0-1 and error list."""
+    try:
+        parsed = json.loads(response_text)
+    except (json.JSONDecodeError, ValueError):
+        return {"score": 0.0, "errors": ["Response is not valid JSON"]}
+
+    errors = []
+    required = schema.get("required", [])
+    properties = schema.get("properties", {})
+
+    if not properties:
+        return {"score": 1.0 if isinstance(parsed, dict) else 0.0, "errors": []}
+
+    total_fields = len(properties)
+    present_fields = 0
+
+    for field, field_schema in properties.items():
+        if isinstance(parsed, dict) and field in parsed:
+            present_fields += 1
+            expected_type = field_schema.get("type")
+            value = parsed[field]
+            if expected_type == "string" and not isinstance(value, str):
+                errors.append(f"Field '{field}' expected string, got {type(value).__name__}")
+            elif expected_type == "number" and not isinstance(value, (int, float)):
+                errors.append(f"Field '{field}' expected number, got {type(value).__name__}")
+            elif expected_type == "integer" and not isinstance(value, int):
+                errors.append(f"Field '{field}' expected integer, got {type(value).__name__}")
+            elif expected_type == "boolean" and not isinstance(value, bool):
+                errors.append(f"Field '{field}' expected boolean, got {type(value).__name__}")
+            elif expected_type == "array" and not isinstance(value, list):
+                errors.append(f"Field '{field}' expected array, got {type(value).__name__}")
+            elif expected_type == "object" and not isinstance(value, dict):
+                errors.append(f"Field '{field}' expected object, got {type(value).__name__}")
+        elif field in required:
+            errors.append(f"Required field '{field}' missing")
+
+    field_score = present_fields / total_fields if total_fields > 0 else 1.0
+    type_penalty = len(errors) * 0.1
+    score = max(0.0, field_score - type_penalty)
+
+    return {"score": round(score, 2), "errors": errors}

@@ -62,7 +62,8 @@ def _call_raw_http(base_url: str, model_id: str, messages: list, max_tokens: int
 
 def call_model(client: OpenAI, model_id: str, system: str, prompt: str, max_tokens: int,
                is_thinking: bool = False, media_type: str | None = None,
-               media_path: str | None = None) -> dict:
+               media_path: str | None = None,
+               response_schema: dict | None = None) -> dict:
     """Call a model and return response + metrics."""
     effective_max = 32768 if is_thinking else max_tokens
 
@@ -104,6 +105,16 @@ def call_model(client: OpenAI, model_id: str, system: str, prompt: str, max_toke
             max_tokens=effective_max,
             temperature=0.3,
         )
+        if response_schema and response_schema != {}:
+            kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "benchmark_response",
+                    "strict": True,
+                    "schema": response_schema,
+                },
+            }
+            log.warning(f"Structured output enabled — non-streaming fallback")
         resp = client.chat.completions.create(**kwargs)
         elapsed = time.perf_counter() - t0
         log.warning(f"Model responded in {elapsed:.1f}s, tokens={resp.usage.completion_tokens if resp.usage else '?'}")
@@ -156,10 +167,14 @@ async def run_benchmark_stream(
         yield {"event": "test_start", "data": {"test_index": i, "test_id": tc["test_id"], "name": tc["name"]}}
 
         # Run the sync OpenAI call in a thread to avoid blocking the event loop
+        schema = tc.get("response_schema") or {}
+        if isinstance(schema, str):
+            schema = json_mod.loads(schema) if schema else {}
         resp = await asyncio.to_thread(
             call_model, client, model_id,
             tc["system_prompt"], tc["user_prompt"], tc["max_tokens"], is_thinking,
             tc.get("media_type"), tc.get("media_path"),
+            schema if schema != {} else None,
         )
 
         score_result = score_response({
@@ -167,6 +182,10 @@ async def run_benchmark_stream(
             "eval_anti": tc.get("eval_anti", []),
             "eval_json": tc.get("eval_json", False),
             "eval_sentence_count": tc.get("eval_sentence_count"),
+            "eval_min_length": tc.get("eval_min_length"),
+            "eval_regex": tc.get("eval_regex", []),
+            "response_schema": tc.get("response_schema", {}),
+            "eval_mode": tc.get("eval_mode", "keyword"),
         }, resp["content"])
 
         scores.append(score_result["final_score"])

@@ -144,9 +144,16 @@ function buildNativeSystemPrompt(modelId: string, customInstructions?: string): 
     `| YouTube video | youtube (url) |`,
     `| Write HTML/CSS/JS files (Arena) | write_file (filename, content) |`,
     ``,
+    `## TOOL ARGUMENT EXAMPLES (use these exact field names)`,
+    ``,
+    `sandbox: {"action": "execute", "code": "print(2+2)", "language": "python"}`,
+    `web_search: {"query": "your search terms"}`,
+    `browser_go: {"action": "go", "url": "https://example.com"}`,
+    ``,
     `## RULES`,
     `- NEVER say "I cannot access" or "I'm unable to browse" — you have real tools that work.`,
     `- Use the native function calling API. Do NOT write tool calls as text or XML.`,
+    `- ALWAYS include all required arguments. Never send empty {} args.`,
   ];
 
   if (customInstructions) {

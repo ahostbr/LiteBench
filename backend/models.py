@@ -51,6 +51,8 @@ class TestCaseCreate(BaseModel):
     eval_sentence_count: Optional[int] = None
     eval_regex: list[str] = []
     eval_min_length: Optional[int] = None
+    response_schema: dict = {}
+    eval_mode: str = "keyword"
     max_tokens: int = 600
     sort_order: int = 0
 
@@ -66,6 +68,8 @@ class TestCaseUpdate(BaseModel):
     eval_sentence_count: Optional[int] = None
     eval_regex: Optional[list[str]] = None
     eval_min_length: Optional[int] = None
+    response_schema: Optional[dict] = None
+    eval_mode: Optional[str] = None
     max_tokens: Optional[int] = None
     sort_order: Optional[int] = None
 
@@ -83,6 +87,8 @@ class TestCaseOut(BaseModel):
     eval_sentence_count: Optional[int]
     eval_regex: list[str] = []
     eval_min_length: Optional[int] = None
+    response_schema: dict = {}
+    eval_mode: str = "keyword"
     max_tokens: int
     sort_order: int
 
