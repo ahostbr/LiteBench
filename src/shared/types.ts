@@ -424,6 +424,15 @@ export interface LiveAgentTask {
 export type BattlePhase = 'configuring' | 'building' | 'judging' | 'results';
 export type BattleStatus = 'active' | 'completed' | 'cancelled';
 export type CompetitorStatus = 'pending' | 'running' | 'completed' | 'failed' | 'dnf';
+export type ExecutionSurface = 'arena' | 'agent-chat' | 'orchestrator-terminal';
+export type ChallengeMode = 'artifact' | 'interactive-browser' | 'project';
+export type ChallengeArtifactContract = 'index-html' | 'browser-scene' | 'project-root';
+export type ChallengeVerifierType =
+  | 'static-artifact'
+  | 'interaction'
+  | 'runtime'
+  | 'task-specific'
+  | 'project-build';
 
 export interface Battle {
   id: string;
@@ -484,5 +493,12 @@ export interface PresetChallenge {
   title: string;
   description: string;
   difficulty: ChallengeDifficulty;
+  difficultyTier: number;
+  executionSurface: ExecutionSurface;
+  mode: ChallengeMode;
+  artifactContract: ChallengeArtifactContract;
+  verifierType: ChallengeVerifierType;
+  toolAllowlist: string[];
+  runtimeChecks: string[];
   systemPromptAddendum: string;
 }

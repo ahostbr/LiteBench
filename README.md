@@ -29,6 +29,16 @@ Every existing benchmark for local models either:
 - **Text Benchmarks** — 6 suites (Creator, Standard, Speed, Stress, Judgment, Multimodal)
 - **Fully Local** — Your models, your hardware, nothing leaves your machine
 
+## Execution Surfaces
+
+LiteBench currently spans three linked execution surfaces:
+
+1. **Arena** — head-to-head artifact battles for generated browser output
+2. **Agent Chat** — real tool-use sessions with browser, search, sandbox, and fetch tools
+3. **Built-in PTY Terminal** — human + `.claude` orchestrator workflows for training, mutation, and review loops
+
+Today, the Arena panel is still centered on **artifact-mode** challenges rooted in `index.html`. That makes it a strong fit for websites and self-contained browser apps, while richer interactive/project modes can be layered on top later.
+
 ![Dashboard — Score trends, recent runs, benchmark configuration](docs/images/litebench-dashboard.jpg)
 
 ![Run Detail — Score gauge, category breakdown, per-test results](docs/images/litebench-run-detail.jpg)

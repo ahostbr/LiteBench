@@ -6,13 +6,17 @@ import { randomUUID } from 'crypto';
 import type {
   Battle,
   BattleCompetitor,
+  ChallengeArtifactContract,
   BattlePhase,
   BattleStatus,
   ChallengeDifficulty,
+  ChallengeMode,
   CompetitorStatus,
   EloRating,
+  ExecutionSurface,
   MetricResult,
   PresetChallenge,
+  ChallengeVerifierType,
 } from '../../shared/types';
 
 type SqlRow = Record<string, unknown>;
@@ -66,6 +70,13 @@ CREATE TABLE IF NOT EXISTS preset_challenges (
     title TEXT NOT NULL,
     description TEXT NOT NULL,
     difficulty TEXT NOT NULL DEFAULT 'medium',
+    difficulty_tier INTEGER NOT NULL DEFAULT 1,
+    execution_surface TEXT NOT NULL DEFAULT 'arena',
+    mode TEXT NOT NULL DEFAULT 'artifact',
+    artifact_contract TEXT NOT NULL DEFAULT 'index-html',
+    verifier_type TEXT NOT NULL DEFAULT 'static-artifact',
+    tool_allowlist_json TEXT NOT NULL DEFAULT '[]',
+    runtime_checks_json TEXT NOT NULL DEFAULT '[]',
     system_prompt_addendum TEXT NOT NULL DEFAULT ''
 );
 `;
@@ -76,6 +87,13 @@ const SEED_PRESETS: PresetChallenge[] = [
     title: 'Landing Page',
     description: 'Build a modern SaaS landing page with hero, features, pricing, CTA',
     difficulty: 'easy',
+    difficultyTier: 1,
+    executionSurface: 'arena',
+    mode: 'artifact',
+    artifactContract: 'index-html',
+    verifierType: 'static-artifact',
+    toolAllowlist: ['write_file'],
+    runtimeChecks: ['html-loads', 'responsive-layout'],
     systemPromptAddendum:
       'Focus on a clean, modern SaaS landing page. Include a hero section with headline and CTA, a features grid, a pricing table with 3 tiers, and a footer. Use a professional color palette.',
   },
@@ -84,6 +102,13 @@ const SEED_PRESETS: PresetChallenge[] = [
     title: 'Portfolio',
     description: 'Create a developer portfolio with projects, about, contact form',
     difficulty: 'easy',
+    difficultyTier: 1,
+    executionSurface: 'arena',
+    mode: 'artifact',
+    artifactContract: 'index-html',
+    verifierType: 'static-artifact',
+    toolAllowlist: ['write_file'],
+    runtimeChecks: ['html-loads', 'responsive-layout'],
     systemPromptAddendum:
       'Build a developer portfolio website. Include an about section, a projects grid with cards (image, title, description, tech stack tags), a skills section, and a contact form. Make it feel personal and creative.',
   },
@@ -92,6 +117,13 @@ const SEED_PRESETS: PresetChallenge[] = [
     title: 'Dashboard',
     description: 'Design an analytics dashboard with charts, stats cards, sidebar nav',
     difficulty: 'hard',
+    difficultyTier: 2,
+    executionSurface: 'arena',
+    mode: 'artifact',
+    artifactContract: 'index-html',
+    verifierType: 'static-artifact',
+    toolAllowlist: ['write_file'],
+    runtimeChecks: ['html-loads', 'responsive-layout', 'script-runs'],
     systemPromptAddendum:
       'Create an analytics dashboard UI. Include a sidebar navigation, top stats cards (revenue, users, orders, conversion rate), a main chart area, a recent activity table, and a notifications panel. Use a dark theme.',
   },
@@ -100,6 +132,13 @@ const SEED_PRESETS: PresetChallenge[] = [
     title: 'E-Commerce',
     description: 'Build a product listing page with filters, cart, product cards',
     difficulty: 'medium',
+    difficultyTier: 2,
+    executionSurface: 'arena',
+    mode: 'artifact',
+    artifactContract: 'index-html',
+    verifierType: 'static-artifact',
+    toolAllowlist: ['write_file'],
+    runtimeChecks: ['html-loads', 'responsive-layout', 'script-runs'],
     systemPromptAddendum:
       'Build an e-commerce product listing page. Include a filter sidebar (category, price range, rating), a grid of product cards (image, name, price, rating, add-to-cart button), a mini cart, and pagination. Use clean, modern styling.',
   },
@@ -108,6 +147,13 @@ const SEED_PRESETS: PresetChallenge[] = [
     title: 'Blog',
     description: 'Create a blog homepage with article cards, categories, search',
     difficulty: 'medium',
+    difficultyTier: 1,
+    executionSurface: 'arena',
+    mode: 'artifact',
+    artifactContract: 'index-html',
+    verifierType: 'static-artifact',
+    toolAllowlist: ['write_file'],
+    runtimeChecks: ['html-loads', 'responsive-layout'],
     systemPromptAddendum:
       'Create a blog homepage. Include a featured article hero, a grid of article cards (thumbnail, title, excerpt, author, date), a categories sidebar, a search bar, and pagination. Aim for readability and clean typography.',
   },
@@ -116,6 +162,13 @@ const SEED_PRESETS: PresetChallenge[] = [
     title: 'Restaurant',
     description: 'Design a restaurant website with menu, reservations, gallery',
     difficulty: 'medium',
+    difficultyTier: 2,
+    executionSurface: 'arena',
+    mode: 'artifact',
+    artifactContract: 'index-html',
+    verifierType: 'static-artifact',
+    toolAllowlist: ['write_file'],
+    runtimeChecks: ['html-loads', 'responsive-layout', 'form-structure'],
     systemPromptAddendum:
       'Design a restaurant website. Include a hero with an inviting food photo background, a menu section organized by courses, a reservation form (date, time, guests), a photo gallery, and location/hours info. Make it feel warm and appetizing.',
   },
@@ -159,6 +212,37 @@ export function initBattlesDb(): void {
   } catch {
     // Column already exists — ignore
   }
+  try {
+    battlesDb.exec("ALTER TABLE preset_challenges ADD COLUMN difficulty_tier INTEGER NOT NULL DEFAULT 1");
+  } catch {}
+  try {
+    battlesDb.exec("ALTER TABLE preset_challenges ADD COLUMN execution_surface TEXT NOT NULL DEFAULT 'arena'");
+  } catch {}
+  try {
+    battlesDb.exec("ALTER TABLE preset_challenges ADD COLUMN mode TEXT NOT NULL DEFAULT 'artifact'");
+  } catch {}
+  try {
+    battlesDb.exec("ALTER TABLE preset_challenges ADD COLUMN artifact_contract TEXT NOT NULL DEFAULT 'index-html'");
+  } catch {}
+  try {
+    battlesDb.exec("ALTER TABLE preset_challenges ADD COLUMN verifier_type TEXT NOT NULL DEFAULT 'static-artifact'");
+  } catch {}
+  try {
+    battlesDb.exec("ALTER TABLE preset_challenges ADD COLUMN tool_allowlist_json TEXT NOT NULL DEFAULT '[]'");
+  } catch {}
+  try {
+    battlesDb.exec("ALTER TABLE preset_challenges ADD COLUMN runtime_checks_json TEXT NOT NULL DEFAULT '[]'");
+  } catch {}
+  battlesDb.exec(`
+    UPDATE preset_challenges
+    SET difficulty_tier = COALESCE(difficulty_tier, 1),
+        execution_surface = COALESCE(NULLIF(execution_surface, ''), 'arena'),
+        mode = COALESCE(NULLIF(mode, ''), 'artifact'),
+        artifact_contract = COALESCE(NULLIF(artifact_contract, ''), 'index-html'),
+        verifier_type = COALESCE(NULLIF(verifier_type, ''), 'static-artifact'),
+        tool_allowlist_json = COALESCE(NULLIF(tool_allowlist_json, ''), '[]'),
+        runtime_checks_json = COALESCE(NULLIF(runtime_checks_json, ''), '[]')
+  `);
   seedPresets();
 }
 
@@ -212,11 +296,28 @@ function rowToEloRating(row: SqlRow): EloRating {
 }
 
 function rowToPreset(row: SqlRow): PresetChallenge {
+  const parseJsonList = (value: unknown): string[] => {
+    if (typeof value !== 'string' || value.length === 0) return [];
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+    } catch {
+      return [];
+    }
+  };
+
   return {
     id: String(row.id),
     title: String(row.title),
     description: String(row.description),
     difficulty: String(row.difficulty) as ChallengeDifficulty,
+    difficultyTier: Number(row.difficulty_tier ?? 1),
+    executionSurface: String(row.execution_surface ?? 'arena') as ExecutionSurface,
+    mode: String(row.mode ?? 'artifact') as ChallengeMode,
+    artifactContract: String(row.artifact_contract ?? 'index-html') as ChallengeArtifactContract,
+    verifierType: String(row.verifier_type ?? 'static-artifact') as ChallengeVerifierType,
+    toolAllowlist: parseJsonList(row.tool_allowlist_json),
+    runtimeChecks: parseJsonList(row.runtime_checks_json),
     systemPromptAddendum: String(row.system_prompt_addendum),
   };
 }
@@ -548,15 +649,34 @@ export function getPresets(): PresetChallenge[] {
 
 export function seedPresets(): void {
   const db = ensureDb();
-  const existing = db
-    .prepare('SELECT COUNT(*) as count FROM preset_challenges')
-    .get() as { count: number };
-
-  if (existing.count > 0) return;
-
   const insert = db.prepare(
-    `INSERT INTO preset_challenges (id, title, description, difficulty, system_prompt_addendum)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO preset_challenges (
+       id,
+       title,
+       description,
+       difficulty,
+       difficulty_tier,
+       execution_surface,
+       mode,
+       artifact_contract,
+       verifier_type,
+       tool_allowlist_json,
+       runtime_checks_json,
+       system_prompt_addendum
+     )
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       title = excluded.title,
+       description = excluded.description,
+       difficulty = excluded.difficulty,
+       difficulty_tier = excluded.difficulty_tier,
+       execution_surface = excluded.execution_surface,
+       mode = excluded.mode,
+       artifact_contract = excluded.artifact_contract,
+       verifier_type = excluded.verifier_type,
+       tool_allowlist_json = excluded.tool_allowlist_json,
+       runtime_checks_json = excluded.runtime_checks_json,
+       system_prompt_addendum = excluded.system_prompt_addendum`,
   );
 
   const insertAll = db.transaction(() => {
@@ -566,6 +686,13 @@ export function seedPresets(): void {
         preset.title,
         preset.description,
         preset.difficulty,
+        preset.difficultyTier,
+        preset.executionSurface,
+        preset.mode,
+        preset.artifactContract,
+        preset.verifierType,
+        JSON.stringify(preset.toolAllowlist),
+        JSON.stringify(preset.runtimeChecks),
         preset.systemPromptAddendum,
       );
     }

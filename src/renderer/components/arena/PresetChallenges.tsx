@@ -1,11 +1,37 @@
 import { useEffect } from 'react';
-import type { PresetChallenge, ChallengeDifficulty } from '../../../shared/types';
+import type {
+  PresetChallenge,
+  ChallengeDifficulty,
+  ChallengeMode,
+  ChallengeVerifierType,
+  ExecutionSurface,
+} from '../../../shared/types';
 import { useArenaStore } from '@/stores/arena-store';
 
 const DIFFICULTY_STYLES: Record<ChallengeDifficulty, { label: string; bg: string; text: string }> = {
   easy: { label: 'Easy', bg: 'rgba(74,222,128,0.15)', text: '#4ade80' },
   medium: { label: 'Medium', bg: 'rgba(251,191,36,0.15)', text: '#fbbf24' },
   hard: { label: 'Hard', bg: 'rgba(248,113,113,0.15)', text: '#f87171' },
+};
+
+const MODE_LABELS: Record<ChallengeMode, string> = {
+  artifact: 'Artifact',
+  'interactive-browser': 'Interactive',
+  project: 'Project',
+};
+
+const SURFACE_LABELS: Record<ExecutionSurface, string> = {
+  arena: 'Arena',
+  'agent-chat': 'Agent Chat',
+  'orchestrator-terminal': 'PTY Terminal',
+};
+
+const VERIFIER_LABELS: Record<ChallengeVerifierType, string> = {
+  'static-artifact': 'Static verifier',
+  interaction: 'Interaction verifier',
+  runtime: 'Runtime verifier',
+  'task-specific': 'Task-specific verifier',
+  'project-build': 'Project/build verifier',
 };
 
 interface PresetChallengesProps {
@@ -56,6 +82,20 @@ export function PresetChallenges({ onSelect, selectedPresetId }: PresetChallenge
                 </span>
               </div>
               <p className="text-[11px] text-zinc-500 leading-relaxed">{challenge.description}</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <span className="rounded-full bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-300">
+                  {MODE_LABELS[challenge.mode]}
+                </span>
+                <span className="rounded-full bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-300">
+                  {SURFACE_LABELS[challenge.executionSurface]}
+                </span>
+                <span className="rounded-full bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-300">
+                  T{challenge.difficultyTier}
+                </span>
+              </div>
+              <p className="mt-2 text-[10px] leading-relaxed text-zinc-600">
+                {VERIFIER_LABELS[challenge.verifierType]}
+              </p>
             </button>
           );
         })}

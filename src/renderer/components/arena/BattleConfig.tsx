@@ -5,6 +5,24 @@ import { useEndpointsStore } from '@/stores/endpoints';
 import { PresetChallenges } from './PresetChallenges';
 import type { PresetChallenge } from '../../../shared/types';
 
+const EXECUTION_SURFACES = [
+  {
+    key: 'arena',
+    title: 'Arena',
+    description: 'Head-to-head artifact battles for generated browser output.',
+  },
+  {
+    key: 'agent-chat',
+    title: 'Agent Chat',
+    description: 'Real tool-use sessions for browsing, search, and sandbox execution.',
+  },
+  {
+    key: 'orchestrator-terminal',
+    title: 'PTY Terminal',
+    description: 'Human + .claude orchestrator workflows for training and review loops.',
+  },
+] as const;
+
 interface BattleConfigProps {
   selectedModels: { endpointId: number; modelId: string }[];
   prompt: string;
@@ -86,6 +104,22 @@ export function BattleConfig({
         <div>
           <h2 className="text-sm font-semibold text-zinc-100">Battle Arena</h2>
           <p className="text-xs text-zinc-500">Pick 2+ models and a challenge to compete head-to-head</p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+          LiteBench execution surfaces
+        </p>
+        <div className="mt-2 grid gap-2 md:grid-cols-3">
+          {EXECUTION_SURFACES.map((surface) => (
+            <div key={surface.key} className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-2.5">
+              <p className="text-xs font-semibold text-zinc-200">{surface.title}</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-zinc-500">
+                {surface.description}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
 
