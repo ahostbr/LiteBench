@@ -15,7 +15,8 @@
  * 3. Tool schema formatting per model type
  */
 
-import type { AgentToolCall } from '../../shared/types';
+import type { AgentToolCall, PresetChallenge } from '../../shared/types';
+import { extractThinking } from './thinking';
 
 // ── Model Capability Detection ──────────────────────────────────────────────
 
@@ -38,6 +39,13 @@ const NATIVE_TOOL_MODEL_PATTERNS = [
   'deepseek',
   'phi-4',
   'phi4',
+  'glm',
+];
+
+const NON_NATIVE_DISTILL_PATTERNS = [
+  'distill',
+  'reasoning-distill',
+  'opus-distill',
 ];
 
 /**
@@ -46,6 +54,9 @@ const NATIVE_TOOL_MODEL_PATTERNS = [
  */
 export function supportsNativeToolCalling(modelId: string): boolean {
   const lower = modelId.toLowerCase();
+  if (NON_NATIVE_DISTILL_PATTERNS.some((p) => lower.includes(p))) {
+    return false;
+  }
   return NATIVE_TOOL_MODEL_PATTERNS.some((p) => lower.includes(p));
 }
 
@@ -55,6 +66,133 @@ interface ToolSchema {
   name: string;
   description: string;
   parameters: Record<string, unknown>;
+}
+
+export type AgentReasoningMode = 'default' | 'off';
+
+export interface AgentHarnessOptions {
+  enableTools?: boolean;
+  customInstructions?: string;
+  reasoningMode?: AgentReasoningMode;
+  reasoningBudgetTokens?: number;
+}
+
+export function deriveAdaptiveReasoningBudget(
+  challenge?: Pick<PresetChallenge, 'difficultyTier' | 'mode'>,
+): number | undefined {
+  if (!challenge) return undefined;
+  if (challenge.mode === 'project') return 8192;
+  if ((challenge.difficultyTier ?? 1) <= 1) return 512;
+  if ((challenge.difficultyTier ?? 1) === 2) return 2048;
+  return 4096;
+}
+
+function buildReasoningInstructionLines(
+  options?: Pick<AgentHarnessOptions, 'enableTools' | 'reasoningMode' | 'reasoningBudgetTokens'>,
+): string[] {
+  if (options?.enableTools === false) {
+    return [];
+  }
+
+  if (options?.reasoningMode === 'off') {
+    return [
+      `## REASONING MODE`,
+      `Thinking mode is OFF for this turn.`,
+      `- Do NOT emit <think> tags or hidden chain-of-thought.`,
+      `- Go straight to one tool call or the final answer.`,
+      `- Do NOT restate plans or narrate your internal reasoning.`,
+    ];
+  }
+
+  const budgetLine = options?.reasoningBudgetTokens
+    ? `- Keep your thinking under about ${options.reasoningBudgetTokens} tokens before acting.`
+    : `- Keep your thinking concise and action-oriented.`;
+
+  return [
+    `## REASONING CHECKPOINTS`,
+    `Before any tool call, the FINAL line inside your thinking must be exactly:`,
+    `CONCLUSION: <one sentence stating the next tool and why>`,
+    budgetLine,
+    `- The CONCLUSION line must be the last reasoning line immediately before the tool call.`,
+    `- After writing the CONCLUSION line, emit the tool call immediately.`,
+    `- If you catch yourself repeating the same plan, stop reasoning and act.`,
+  ];
+}
+
+function normalizeReasoningWords(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((word) => word.length > 1);
+}
+
+export function approximateReasoningTokens(text: string): number {
+  return normalizeReasoningWords(text).length;
+}
+
+export function detectReasoningLoop(thinking: string): string | null {
+  const words = normalizeReasoningWords(thinking).slice(-256);
+  if (words.length < 18) return null;
+
+  for (const phraseSize of [12, 10, 8, 6]) {
+    const counts = new Map<string, number>();
+    for (let i = 0; i <= words.length - phraseSize; i++) {
+      const phraseWords = words.slice(i, i + phraseSize);
+      const uniqueCount = new Set(phraseWords).size;
+      if (uniqueCount < Math.max(4, Math.floor(phraseSize / 2))) {
+        continue;
+      }
+
+      const phrase = phraseWords.join(' ');
+      const next = (counts.get(phrase) ?? 0) + 1;
+      if (next >= 3) {
+        return phrase;
+      }
+      counts.set(phrase, next);
+    }
+  }
+
+  return null;
+}
+
+export function extractLastConclusionLine(thinking: string): string | null {
+  const lines = thinking
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const match = lines[i].match(/^CONCLUSION:\s*(.+)$/i);
+    if (match?.[1]) {
+      return match[1].trim();
+    }
+  }
+
+  return null;
+}
+
+export function buildThinkingRetryPreamble(assistantText: string): string {
+  const extracted = extractThinking(assistantText);
+  const lastConclusion = extractLastConclusionLine(extracted.thinking);
+  const reasoningTail = extracted.thinking.trim().slice(-800).trim();
+
+  const parts = [
+    `Previous attempt was interrupted because the reasoning looped, exceeded budget, or got stuck before acting.`,
+    `Thinking mode is now OFF.`,
+    `Do NOT emit <think> tags on this retry.`,
+  ];
+
+  if (lastConclusion) {
+    parts.push(`Last CONCLUSION checkpoint: ${lastConclusion}`);
+  } else if (reasoningTail) {
+    parts.push(`Partial reasoning tail from the interrupted attempt:\n${reasoningTail}`);
+  }
+
+  parts.push(`Use the checkpoint above and act immediately with exactly one tool call or the final answer.`);
+
+  return parts.join('\n\n');
 }
 
 /**
@@ -73,34 +211,33 @@ export function isSmallModel(modelId: string): boolean {
 export function buildSystemPrompt(
   modelId: string,
   tools: ToolSchema[],
-  options?: {
-    enableTools?: boolean;
-    customInstructions?: string;
-  },
+  options?: AgentHarnessOptions,
 ): string {
   const isNative = supportsNativeToolCalling(modelId);
   const enableTools = options?.enableTools ?? true;
   const small = isSmallModel(modelId);
 
   if ((isNative || !enableTools) && !small) {
-    return buildNativeSystemPrompt(modelId, options?.customInstructions);
+    return buildNativeSystemPrompt(modelId, options);
   }
 
   // Small models get a compact native prompt with a concrete example
   if (isNative && small) {
-    return buildSmallModelPrompt(modelId, options?.customInstructions);
+    return buildSmallModelPrompt(modelId, options);
   }
 
-  return buildXMLSystemPrompt(modelId, tools, options?.customInstructions);
+  return buildXMLSystemPrompt(modelId, tools, options);
 }
 
 /**
  * Minimal system prompt for models with native tool calling (~150 tokens).
  * Tools are passed via the OpenAI API's `tools` parameter.
  */
-function buildNativeSystemPrompt(modelId: string, customInstructions?: string): string {
+function buildNativeSystemPrompt(modelId: string, options?: AgentHarnessOptions): string {
   const parts: string[] = [
     `You are an AI assistant with access to real, working tools. You can search the web, read web pages, browse websites, execute code, and more.`,
+    ``,
+    ...buildReasoningInstructionLines(options),
     ``,
     `## TOOL DISCIPLINE (CRITICAL — READ THIS CAREFULLY)`,
     ``,
@@ -108,10 +245,11 @@ function buildNativeSystemPrompt(modelId: string, customInstructions?: string): 
     ``,
     `Rules:`,
     `- ONE tool per message. Never call 2+ tools in the same response.`,
-    `- NEVER repeat a tool call. If you already called web_search with a query, do NOT call it again.`,
-    `- NEVER call the same tool more than once unless the arguments are completely different.`,
-    `- After receiving a tool result, either: (a) call a DIFFERENT tool, or (b) write your final answer.`,
-    `- Maximum 3 tool calls per task. Plan your tool use efficiently.`,
+    `- NEVER repeat a tool call you already made. If you called browser_go("https://x.com"), do NOT call browser_go again.`,
+    `- STOP CALLING TOOLS once you have enough information to answer. Write your final answer immediately. Do NOT keep searching for more data or "verify" by repeating steps.`,
+    `- After receiving a tool result, ALWAYS ask yourself: "Can I answer the user's question now?" If YES, write your answer. If NO, call ONE more tool.`,
+    `- Do NOT write a text response mid-sequence. Complete ALL requested steps first, then respond.`,
+    `- Maximum 6 tool calls per task. You MUST write your answer before reaching this limit.`,
     ``,
     `## RESPONDING WITH TOOL RESULTS (MANDATORY)`,
     ``,
@@ -127,19 +265,34 @@ function buildNativeSystemPrompt(modelId: string, customInstructions?: string): 
     ``,
     `## BROWSING WORKFLOW`,
     ``,
-    `To read a website:`,
-    `1. Call browser_go with the URL → you get the title, URL, and page text back in ONE call.`,
-    `2. If you need to interact (click a link, fill a form): call browser_elements() to see what's available.`,
-    `3. Use browser_click(index) or browser_type(text, index) to interact.`,
+    `The complete browsing sequence for interacting with a page:`,
+    `1. browser_go(url) → navigate and read the page`,
+    `2. browser_elements() → get clickable/typable element indices`,
+    `3. browser_type(text, index) or browser_click(index) → interact`,
+    `4. DONE → write your answer. Do NOT call browser_go again.`,
     ``,
-    `browser_go is the ONLY way to read a website. One call, one result.`,
+    `After step 3 (click or type), the task is FINISHED. The tool result tells you what happened.`,
+    `NEVER navigate back to the same URL. NEVER call browser_go twice with the same URL.`,
+    `If you need to verify after interaction, use browser_read() (re-reads current page) or browser_screenshot().`,
+    `browser_elements MUST be called before browser_click or browser_type — you need the element indices.`,
+    ``,
+    `## SEARCH WORKFLOW`,
+    ``,
+    `For web_search: ONE search is usually enough. Read the results, then write your answer.`,
+    `If the task explicitly asks for multiple topics, use at most 2-3 searches total.`,
+    `NEVER call web_search more than 3 times. After each search result, decide: do I have enough to answer? If yes, STOP and write your response.`,
     ``,
     `## TOOL SELECTION`,
     `| Task | Tool |`,
     `|------|------|`,
-    `| Search for information | web_search (query) |`,
+    `| Search for information | web_search (query) → read result → answer |`,
     `| Read a specific URL | browser_go (url) or web_fetch (url) |`,
     `| Browse & interact with a site | browser_go → browser_elements → browser_click/type |`,
+    `| Re-read current page after changes | browser_read (no args) |`,
+    `| Visually verify page state | browser_screenshot (no args) |`,
+    `| Wait for file download after clicking a download button | browser_save (no args) |`,
+    `| Wait/sleep before checking again | wait (seconds: 1-30) |`,
+    `| Scroll the page to see more content | browser_scroll (direction: up/down, amount: pixels) |`,
     `| Run code | sandbox (code + language) |`,
     `| YouTube video | youtube (url) |`,
     `| Write HTML/CSS/JS files (Arena) | write_file (filename, content) |`,
@@ -148,7 +301,15 @@ function buildNativeSystemPrompt(modelId: string, customInstructions?: string): 
     ``,
     `sandbox: {"action": "execute", "code": "print(2+2)", "language": "python"}`,
     `web_search: {"query": "your search terms"}`,
-    `browser_go: {"action": "go", "url": "https://example.com"}`,
+    `browser_go: {"url": "https://example.com"}`,
+    `browser_elements: {} (no arguments needed)`,
+    `browser_type: {"text": "hello world", "index": 2}`,
+    `browser_click: {"index": 3}`,
+    `browser_read: {} (re-reads current page, no navigation)`,
+    `browser_screenshot: {} (captures current page as image)`,
+    `browser_save: {} (waits for download to complete, returns file path)`,
+    `wait: {"seconds": 5} (pause before checking page again)`,
+    `browser_scroll: {"direction": "down", "amount": 500}`,
     ``,
     `## RULES`,
     `- NEVER say "I cannot access" or "I'm unable to browse" — you have real tools that work.`,
@@ -156,8 +317,8 @@ function buildNativeSystemPrompt(modelId: string, customInstructions?: string): 
     `- ALWAYS include all required arguments. Never send empty {} args.`,
   ];
 
-  if (customInstructions) {
-    parts.push('', `## Custom Instructions`, customInstructions);
+  if (options?.customInstructions) {
+    parts.push('', `## Custom Instructions`, options.customInstructions);
   }
 
   return parts.join('\n');
@@ -167,9 +328,11 @@ function buildNativeSystemPrompt(modelId: string, customInstructions?: string): 
  * Ultra-compact prompt for small models (sub-2B).
  * Fewer rules, concrete example, direct language.
  */
-function buildSmallModelPrompt(modelId: string, customInstructions?: string): string {
+function buildSmallModelPrompt(modelId: string, options?: AgentHarnessOptions): string {
   const parts: string[] = [
     `You have tools. Use them to answer questions. Do NOT make up answers.`,
+    ``,
+    ...buildReasoningInstructionLines(options),
     ``,
     `RULES:`,
     `1. Call ONE tool, wait for result, then answer.`,
@@ -194,8 +357,8 @@ function buildSmallModelPrompt(modelId: string, customInstructions?: string): st
     `→ You write: "Example.com contains a page titled Example Domain. It says..."`,
   ];
 
-  if (customInstructions) {
-    parts.push('', customInstructions);
+  if (options?.customInstructions) {
+    parts.push('', options.customInstructions);
   }
 
   return parts.join('\n');
@@ -208,7 +371,7 @@ function buildSmallModelPrompt(modelId: string, customInstructions?: string): st
 function buildXMLSystemPrompt(
   modelId: string,
   tools: ToolSchema[],
-  customInstructions?: string,
+  options?: AgentHarnessOptions,
 ): string {
   const escXml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -235,6 +398,8 @@ function buildXMLSystemPrompt(
 
   const parts: string[] = [
     `You are an AI assistant with access to tools.`,
+    ``,
+    ...buildReasoningInstructionLines(options),
     ``,
     `## How to Use Tools`,
     ``,
@@ -267,8 +432,8 @@ function buildXMLSystemPrompt(
     ...toolDocs,
   ];
 
-  if (customInstructions) {
-    parts.push('', `## Custom Instructions`, customInstructions);
+  if (options?.customInstructions) {
+    parts.push('', `## Custom Instructions`, options.customInstructions);
   }
 
   return parts.join('\n');

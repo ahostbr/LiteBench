@@ -1,7 +1,8 @@
 import { existsSync } from 'fs';
 import { join } from 'path';
-import type { AgentStreamEvent, BattleEvent, Endpoint } from '../../shared/types';
+import type { AgentStreamEvent, BattleEvent, Endpoint, PresetChallenge } from '../../shared/types';
 import { streamAgentChat } from './agent-runner';
+import { deriveAdaptiveReasoningBudget, type AgentReasoningMode } from './agent-harness';
 import { setWriteFileContext, clearWriteFileContext } from './tool-registry';
 
 export interface CompetitorRunConfig {
@@ -11,6 +12,9 @@ export interface CompetitorRunConfig {
   modelId: string;
   outputDir: string;
   prompt: string;
+  presetChallenge?: Pick<PresetChallenge, 'difficultyTier' | 'mode'>;
+  reasoningMode?: AgentReasoningMode;
+  maxTokens?: number;
   systemPromptAddendum?: string;
   signal: AbortSignal;
   onEvent: (event: BattleEvent) => void;
@@ -45,10 +49,15 @@ export async function runCompetitor(config: CompetitorRunConfig): Promise<'compl
     modelId,
     outputDir,
     prompt,
+    presetChallenge,
+    reasoningMode,
+    maxTokens,
     systemPromptAddendum,
     signal,
     onEvent,
   } = config;
+
+  const reasoningBudgetTokens = deriveAdaptiveReasoningBudget(presetChallenge);
 
   // Set the output dir context so write_file tool writes to the right location.
   // contextKey is threaded through streamAgentChat → executeTool → write_file executor
@@ -116,6 +125,7 @@ export async function runCompetitor(config: CompetitorRunConfig): Promise<'compl
       },
       `arena-${competitorId}`, // unique browser context key per competitor
       WEBSITE_SYSTEM_PROMPT,
+      { reasoningBudgetTokens, reasoningMode, maxTokens },
     );
 
     // Check if index.html was actually produced

@@ -30,7 +30,16 @@ export const api = {
   },
 
   benchmarks: {
-    run: (data: { endpoint_id: number; suite_id: number; model_id: string; model_name: string; is_thinking?: boolean; is_agent_run?: boolean }) =>
+    run: (data: {
+      endpoint_id: number;
+      suite_id: number;
+      model_id: string;
+      model_name: string;
+      is_thinking?: boolean;
+      is_agent_run?: boolean;
+      unlimited_tokens?: boolean;
+      mode?: 'baseline' | 'trained';
+    }) =>
       window.liteBench.benchmarks.run(data),
     cancel: (runId: number) => window.liteBench.benchmarks.cancel(runId),
     list: () => window.liteBench.benchmarks.list(),

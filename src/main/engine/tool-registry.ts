@@ -8,6 +8,8 @@ import {
   typeText,
   getActiveSessionId,
   executeJS,
+  screenshot,
+  waitForDownload,
 } from '../browser-manager';
 
 /**
@@ -577,7 +579,143 @@ toolRegistry.register({
   },
 });
 
-// browser_screenshot, browser_execute_js, browser_scroll, browser_console_logs REMOVED.
-// These confused models (especially Gemma) into dumping HTML via execute_js or looping on scroll.
-// The core 4 browser tools (go, elements, click, type) cover all benchmark use cases.
-// These functions remain available in browser-manager.ts for direct IPC use by the UI.
+// ── Wait tool (sleep between polls) ─────────────────────────────────────────
+
+toolRegistry.register({
+  category: 'browser',
+  schema: {
+    type: 'function',
+    function: {
+      name: 'wait',
+      description:
+        'Wait for a specified number of seconds before continuing. Use between browser actions to let pages load, images generate, or animations complete. Max 30 seconds.',
+      parameters: {
+        type: 'object',
+        properties: {
+          seconds: {
+            type: 'number',
+            description: 'Number of seconds to wait (1-30)',
+          },
+        },
+        required: ['seconds'],
+      },
+    },
+  },
+  executor: async (args) => {
+    const seconds = Math.min(30, Math.max(1, (args.seconds as number) || 3));
+    await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+    return `Waited ${seconds} seconds.`;
+  },
+});
+
+// ── Browser scroll ──────────────────────────────────────────────────────────
+
+toolRegistry.register({
+  category: 'browser',
+  schema: {
+    type: 'function',
+    function: {
+      name: 'browser_scroll',
+      description:
+        'Scroll the current page up or down by a given amount in pixels. Use to reveal content below the fold.',
+      parameters: {
+        type: 'object',
+        properties: {
+          direction: {
+            type: 'string',
+            enum: ['up', 'down'],
+            description: 'Scroll direction',
+          },
+          amount: {
+            type: 'number',
+            description: 'Pixels to scroll (default 500)',
+          },
+        },
+        required: ['direction'],
+      },
+    },
+  },
+  executor: async (args) => {
+    const sessionId = requireBrowserSession();
+    const { scrollPage } = await import('../browser-manager');
+    const direction = (args.direction as string) || 'down';
+    const amount = (args.amount as number) || 500;
+    const result = await scrollPage(sessionId, direction as 'up' | 'down', amount);
+    return `Scrolled ${direction} by ${amount}px.`;
+  },
+});
+
+// ── Tier 2: Verification tools (read current page, screenshot) ──────────────
+
+toolRegistry.register({
+  category: 'browser',
+  schema: {
+    type: 'function',
+    function: {
+      name: 'browser_read',
+      description:
+        'Read the current page content without navigating. Use after browser_click or browser_type to see what changed. Returns the page title, URL, and visible text.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  executor: async () => {
+    const sessionId = requireBrowserSession();
+    const raw = (await readPage(sessionId)) as PageData;
+    return formatPlainTextPage(raw);
+  },
+});
+
+toolRegistry.register({
+  category: 'browser',
+  schema: {
+    type: 'function',
+    function: {
+      name: 'browser_screenshot',
+      description:
+        'Capture a screenshot of the current browser page. Returns a base64 PNG image. Use to visually verify what the page looks like after interactions.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  executor: async () => {
+    const sessionId = requireBrowserSession();
+    const base64 = await screenshot(sessionId);
+    return `Screenshot captured (${Math.round(base64.length * 0.75 / 1024)}KB PNG). The page currently shows the browser content.`;
+  },
+});
+
+toolRegistry.register({
+  category: 'browser',
+  schema: {
+    type: 'function',
+    function: {
+      name: 'browser_save',
+      description:
+        'Wait for a file download to complete and return the saved file path. Call this AFTER clicking a download button — the file auto-saves without any dialog. Returns the filename, path, and size.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  executor: async () => {
+    const sessionId = requireBrowserSession();
+    try {
+      const result = await waitForDownload(sessionId, 30_000);
+      if (result.state === 'completed') {
+        return `Download complete: ${result.filename} (${(result.size / 1024).toFixed(1)}KB)\nSaved to: ${result.path}`;
+      }
+      return `Download ${result.state}: ${result.filename}`;
+    } catch (err: any) {
+      return `Download error: ${err.message}`;
+    }
+  },
+});

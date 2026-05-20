@@ -9,6 +9,9 @@ import {
   Settings,
   FileText,
   Activity,
+  Image,
+  Download,
+  Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -16,6 +19,7 @@ export interface SlashCommand {
   name: string;
   description: string;
   icon: React.ReactNode;
+  expand?: string;
 }
 
 export const SLASH_COMMANDS: SlashCommand[] = [
@@ -28,6 +32,24 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { name: '/config', description: 'Show current configuration', icon: <Settings className="w-3.5 h-3.5" /> },
   { name: '/status', description: 'Show connection status', icon: <Activity className="w-3.5 h-3.5" /> },
   { name: '/memory', description: 'Open memory files', icon: <FileText className="w-3.5 h-3.5" /> },
+  {
+    name: '/generate-image',
+    description: 'Generate an image via ChatGPT',
+    icon: <Image className="w-3.5 h-3.5" />,
+    expand: 'Go to https://chatgpt.com. Use browser_elements to find the message input and send button. Use browser_type to type: "Generate an image: {PROMPT}". Use browser_click to click send. Then wait(10) for the image to generate. Use browser_read to check if it says "Stopped thinking" — if not, wait(5) and browser_read again until it does. Once done, use browser_elements to find the download button, browser_click it, then browser_save to download the image. Report the file path.',
+  },
+  {
+    name: '/browse',
+    description: 'Navigate and interact with a website',
+    icon: <Globe className="w-3.5 h-3.5" />,
+    expand: 'Go to {URL}. Use browser_elements to list what is on the page. ',
+  },
+  {
+    name: '/download-image',
+    description: 'Download an image from the current page',
+    icon: <Download className="w-3.5 h-3.5" />,
+    expand: 'Use browser_elements to find the download button on the current page. Click it with browser_click, then call browser_save to wait for the download. Report the saved file path.',
+  },
 ];
 
 interface SlashCommandMenuProps {

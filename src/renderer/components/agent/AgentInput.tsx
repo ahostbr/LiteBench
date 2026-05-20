@@ -91,7 +91,7 @@ export function AgentInput({
 
   const handleSlashSelect = useCallback(
     (cmd: SlashCommand) => {
-      setValue(cmd.name + ' ');
+      setValue(cmd.expand || cmd.name + ' ');
       setSlashOpen(false);
       textareaRef.current?.focus();
     },

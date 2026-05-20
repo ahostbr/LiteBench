@@ -7,7 +7,18 @@ import type {
 } from '../../shared/types';
 import { executeTool } from './tool-executor';
 import { toolRegistry, setBrowserContextKey, cleanupBrowserSession } from './tool-registry';
-import { buildSystemPrompt, supportsNativeToolCalling, parseXMLToolCalls, isSmallModel } from './agent-harness';
+import {
+  approximateReasoningTokens,
+  buildSystemPrompt,
+  buildThinkingRetryPreamble,
+  detectReasoningLoop,
+  isSmallModel,
+  parseXMLToolCalls,
+  supportsNativeToolCalling,
+  type AgentHarnessOptions,
+  type AgentReasoningMode,
+} from './agent-harness';
+import { extractThinking } from './thinking';
 
 type OpenAIMessage = OpenAI.Chat.ChatCompletionMessageParam;
 
@@ -49,8 +60,44 @@ interface PendingToolCall {
   arguments: string;
 }
 
-const MAX_TOOL_ITERATIONS = 5;
-const MAX_TOOL_CALLS_PER_TURN = 3; // Cap tool calls per model turn — disciplined models call 1, allow up to 3
+const MAX_TOOL_ITERATIONS = 8;
+const MAX_TOOL_CALLS_PER_TURN = 1; // Force one tool per turn — models that batch 3+ tools stop mid-sequence
+
+export interface StreamAgentChatOptions {
+  reasoningMode?: AgentReasoningMode;
+  reasoningBudgetTokens?: number;
+  maxTokens?: number;
+}
+
+async function createStreamingCompletion(
+  client: OpenAI,
+  endpoint: Endpoint,
+  modelId: string,
+  request: OpenAI.Chat.ChatCompletionCreateParamsStreaming,
+  reasoningMode: AgentReasoningMode,
+): Promise<AsyncIterable<OpenAI.Chat.ChatCompletionChunk>> {
+  const isQwen = modelId.toLowerCase().includes('qwen');
+  if (reasoningMode === 'off' && isQwen) {
+    try {
+      return await client.chat.completions.create({
+        ...request,
+        extra_body: {
+          chat_template_kwargs: { enable_thinking: false },
+        },
+      } as OpenAI.Chat.ChatCompletionCreateParamsStreaming);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      const unsupported =
+        endpoint.base_url.includes('localhost:1234') ||
+        /enable_thinking|chat_template_kwargs|extra_body|unknown|unsupported|invalid/i.test(msg);
+      if (!unsupported) {
+        throw error;
+      }
+    }
+  }
+
+  return client.chat.completions.create(request);
+}
 
 export async function streamAgentChat(
   endpoint: Endpoint,
@@ -61,6 +108,7 @@ export async function streamAgentChat(
   onEvent: (event: AgentStreamEvent) => void,
   contextKey?: string,
   customInstructions?: string,
+  options?: StreamAgentChatOptions,
 ): Promise<void> {
   const client = new OpenAI({
     apiKey: endpoint.api_key,
@@ -72,122 +120,194 @@ export async function streamAgentChat(
   const browserKey = contextKey ?? `run-${Date.now()}`;
   setBrowserContextKey(browserKey);
 
+  const finishWithError = (message: string): void => {
+    onEvent({ type: 'error', message });
+    cleanupBrowserSession(browserKey);
+  };
+
+  const finishDone = (): void => {
+    onEvent({ type: 'done' });
+    cleanupBrowserSession(browserKey);
+  };
+
   // Build model-specific system prompt with tool instructions
   const small = isSmallModel(modelId);
   const toolSchemas = enableTools ? toolRegistry.getSchemas() : [];
   const isNativeToolModel = supportsNativeToolCalling(modelId);
-  const systemPrompt = buildSystemPrompt(
-    modelId,
-    toolSchemas.map((t) => ({
-      name: t.function.name,
-      description: t.function.description ?? '',
-      parameters: (t.function.parameters ?? {}) as Record<string, unknown>,
-    })),
-    { enableTools, customInstructions },
-  );
+  const harnessTools = toolSchemas.map((t) => ({
+    name: t.function.name,
+    description: t.function.description ?? '',
+    parameters: (t.function.parameters ?? {}) as Record<string, unknown>,
+  }));
 
   // Mutable conversation that grows with tool results
-  const conversation: OpenAIMessage[] = [
-    { role: 'system', content: systemPrompt },
-    ...convertToOpenAIMessages(messages),
-  ];
+  let conversation: OpenAIMessage[] = convertToOpenAIMessages(messages);
 
   // Track previous tool calls to detect retry loops
   const previousCallSignatures = new Set<string>();
 
   for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
     if (signal.aborted) {
-      onEvent({ type: 'error', message: 'Cancelled' });
+      finishWithError('Cancelled');
       return;
     }
 
-    let stream: AsyncIterable<OpenAI.Chat.ChatCompletionChunk>;
-    try {
-      // For native tool-calling models: pass tools via API
-      // For XML models: tools are already in the system prompt
-      const useNativeTools = enableTools && isNativeToolModel;
-      stream = await client.chat.completions.create({
-        model: modelId,
-        messages: conversation,
-        tools: useNativeTools ? toolSchemas : undefined,
-        tool_choice: useNativeTools ? 'auto' : undefined,
-        temperature: enableTools ? 0 : (small ? 0.3 : undefined),
-        stream: true,
-      });
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      onEvent({ type: 'error', message: msg });
-      return;
-    }
-
-    const pendingToolCalls = new Map<number, PendingToolCall>();
+    const useNativeTools = enableTools && isNativeToolModel;
+    let pendingToolCalls = new Map<number, PendingToolCall>();
     let assistantContent = '';
     let finishReason: string | null = null;
+    let attemptConversation = conversation;
+    let attemptReasoningMode: AgentReasoningMode = options?.reasoningMode ?? 'default';
+    let retryPreamble: string | undefined;
 
-    try {
-      for await (const chunk of stream) {
-        if (signal.aborted) {
-          onEvent({ type: 'error', message: 'Cancelled' });
-          return;
-        }
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const promptOptions: AgentHarnessOptions = {
+        enableTools,
+        customInstructions,
+        reasoningMode: attemptReasoningMode,
+        reasoningBudgetTokens: options?.reasoningBudgetTokens,
+      };
+      const systemPrompt = buildSystemPrompt(modelId, harnessTools, promptOptions);
+      const workingConversation: OpenAIMessage[] = retryPreamble
+        ? [
+            ...conversation,
+            { role: 'user', content: retryPreamble } as OpenAI.Chat.ChatCompletionUserMessageParam,
+          ]
+        : conversation;
 
-        const choice = chunk.choices?.[0];
-        if (!choice) continue;
-
-        const delta = choice.delta;
-
-        // Accumulate text content
-        if (delta?.content) {
-          assistantContent += delta.content;
-          onEvent({ type: 'text_delta', content: delta.content });
-        }
-
-        // Accumulate tool call fragments (same pattern as cliproxy.ts)
-        // Cap at MAX_TOOL_CALLS_PER_TURN to prevent runaway models (Gemma 4 generates 600+)
-        let hitToolCap = false;
-        if (delta?.tool_calls) {
-          for (const tc of delta.tool_calls) {
-            const idx = tc.index ?? 0;
-
-            // BREAK the stream if model exceeds the cap (don't just skip — stop reading)
-            if (idx >= MAX_TOOL_CALLS_PER_TURN && !pendingToolCalls.has(idx)) {
-              hitToolCap = true;
-              break;
-            }
-
-            if (!pendingToolCalls.has(idx)) {
-              pendingToolCalls.set(idx, {
-                id: tc.id ?? `call_${idx}`,
-                name: '',
-                arguments: '',
-              });
-            }
-
-            const pending = pendingToolCalls.get(idx)!;
-            if (tc.id) pending.id = tc.id;
-            if (tc.function?.name) pending.name += tc.function.name;
-            if (tc.function?.arguments) pending.arguments += tc.function.arguments;
-          }
-        }
-
-        // If model is generating too many tool calls, stop reading the stream
-        if (hitToolCap) {
-          finishReason = 'tool_calls';
-          break;
-        }
-
-        if (choice.finish_reason) {
-          finishReason = choice.finish_reason;
-        }
-      }
-    } catch (error) {
-      if (signal.aborted) {
-        onEvent({ type: 'error', message: 'Cancelled' });
+      let stream: AsyncIterable<OpenAI.Chat.ChatCompletionChunk>;
+      try {
+        stream = await createStreamingCompletion(
+          client,
+          endpoint,
+          modelId,
+          {
+            model: modelId,
+            messages: [
+              { role: 'system', content: systemPrompt } as OpenAI.Chat.ChatCompletionSystemMessageParam,
+              ...workingConversation,
+            ],
+            tools: useNativeTools ? toolSchemas : undefined,
+            tool_choice: useNativeTools ? 'auto' : undefined,
+            temperature: enableTools ? 0 : (small ? 0.3 : undefined),
+            max_tokens: options?.maxTokens,
+            stream: true,
+          },
+          attemptReasoningMode,
+        );
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        finishWithError(msg);
         return;
       }
-      const msg = error instanceof Error ? error.message : String(error);
-      onEvent({ type: 'error', message: msg });
-      return;
+
+      pendingToolCalls = new Map<number, PendingToolCall>();
+      assistantContent = '';
+      finishReason = null;
+      attemptConversation = workingConversation;
+      let retryThinkingOff = false;
+
+      try {
+        for await (const chunk of stream) {
+          if (signal.aborted) {
+            finishWithError('Cancelled');
+            return;
+          }
+
+          const choice = chunk.choices?.[0];
+          if (!choice) continue;
+
+          const delta = choice.delta;
+
+          if (delta?.content) {
+            assistantContent += delta.content;
+            onEvent({ type: 'text_delta', content: delta.content });
+
+            if (attemptReasoningMode !== 'off') {
+              const extracted = extractThinking(assistantContent);
+              const reasoningTokens = approximateReasoningTokens(extracted.thinking);
+              const hasBudget =
+                typeof options?.reasoningBudgetTokens === 'number' &&
+                options.reasoningBudgetTokens > 0;
+
+              if (hasBudget && reasoningTokens > options.reasoningBudgetTokens!) {
+                retryThinkingOff = true;
+                finishReason = 'reasoning_budget';
+                break;
+              }
+
+              if (detectReasoningLoop(extracted.thinking)) {
+                retryThinkingOff = true;
+                finishReason = 'reasoning_loop';
+                break;
+              }
+            }
+          }
+
+          let hitToolCap = false;
+          if (delta?.tool_calls) {
+            for (const tc of delta.tool_calls) {
+              const idx = tc.index ?? 0;
+
+              if (idx >= MAX_TOOL_CALLS_PER_TURN && !pendingToolCalls.has(idx)) {
+                hitToolCap = true;
+                break;
+              }
+
+              if (!pendingToolCalls.has(idx)) {
+                pendingToolCalls.set(idx, {
+                  id: tc.id ?? `call_${idx}`,
+                  name: '',
+                  arguments: '',
+                });
+              }
+
+              const pending = pendingToolCalls.get(idx)!;
+              if (tc.id) pending.id = tc.id;
+              if (tc.function?.name) pending.name += tc.function.name;
+              if (tc.function?.arguments) pending.arguments += tc.function.arguments;
+            }
+          }
+
+          if (hitToolCap) {
+            finishReason = 'tool_calls';
+            break;
+          }
+
+          if (choice.finish_reason) {
+            finishReason = choice.finish_reason;
+          }
+        }
+      } catch (error) {
+        if (signal.aborted) {
+          finishWithError('Cancelled');
+          return;
+        }
+        const msg = error instanceof Error ? error.message : String(error);
+        finishWithError(msg);
+        return;
+      }
+
+      if (!retryThinkingOff && attemptReasoningMode !== 'off' && pendingToolCalls.size === 0) {
+        const extracted = extractThinking(assistantContent);
+        if (extracted.truncated && extracted.thinking.trim().length > 0) {
+          retryThinkingOff = true;
+          finishReason = finishReason ?? 'reasoning_truncated';
+        }
+      }
+
+      if (retryThinkingOff && attemptReasoningMode !== 'off' && attempt === 0) {
+        onEvent({ type: 'text_replace', content: '' });
+        retryPreamble = buildThinkingRetryPreamble(assistantContent);
+        attemptReasoningMode = 'off';
+        continue;
+      }
+
+      break;
+    }
+
+    if (attemptConversation !== conversation) {
+      conversation = [...attemptConversation];
     }
 
     // No native tool calls detected — check for XML tool calls (non-native models)
@@ -259,8 +379,7 @@ export async function streamAgentChat(
         conversation.push({ role: 'user', content: 'Now provide your final answer based on the tool results above. Include the specific data returned.' });
         continue;
       }
-      onEvent({ type: 'done' });
-      cleanupBrowserSession(browserKey);
+      finishDone();
       return;
     }
 
@@ -279,8 +398,7 @@ export async function streamAgentChat(
       if (assistantContent.trim()) {
         onEvent({ type: 'text_delta', content: '' });
       }
-      onEvent({ type: 'done' });
-      cleanupBrowserSession(browserKey);
+      finishDone();
       return;
     }
     for (const sig of currentSignatures) {
@@ -380,6 +498,5 @@ export async function streamAgentChat(
 
   // Exhausted max iterations — degrade gracefully instead of erroring
   // (Da Vinci: "biological deliberation doesn't error from thinking too long")
-  onEvent({ type: 'done' });
-  cleanupBrowserSession(browserKey);
+  finishDone();
 }

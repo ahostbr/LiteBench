@@ -76,6 +76,16 @@ CREATE TABLE IF NOT EXISTS test_cases (
     expected_tool_calls INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS model_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_pattern TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    base_system_prompt TEXT NOT NULL DEFAULT '',
+    prompt_overrides TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS benchmark_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     endpoint_id INTEGER NOT NULL REFERENCES endpoints(id),
@@ -84,6 +94,7 @@ CREATE TABLE IF NOT EXISTS benchmark_runs (
     model_name TEXT NOT NULL,
     is_thinking INTEGER NOT NULL DEFAULT 0,
     is_agent_run INTEGER NOT NULL DEFAULT 0,
+    mode TEXT NOT NULL DEFAULT 'baseline',
     status TEXT NOT NULL DEFAULT 'pending',
     avg_score REAL,
     avg_tps REAL,
@@ -191,6 +202,20 @@ function parseJsonArray(value: unknown): string[] {
   }
 }
 
+function parseJsonObject(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'string' || value.length === 0) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
 function ensureDb(): Database.Database {
   if (!db) {
     throw new Error('Database has not been initialized');
@@ -226,6 +251,8 @@ function rowToCase(row: SqlRow): TestCase {
     eval_regex: parseJsonArray(row.eval_regex),
     eval_min_length:
       row.eval_min_length === null ? null : Number(row.eval_min_length),
+    response_schema: parseJsonObject(row.response_schema),
+    eval_mode: String(row.eval_mode ?? 'keyword') as TestCase['eval_mode'],
     max_tokens: Number(row.max_tokens),
     sort_order: Number(row.sort_order),
     is_agent_task: Boolean(row.is_agent_task),
@@ -271,6 +298,7 @@ function rowToRun(row: SqlRow): BenchmarkRun {
     model_name: String(row.model_name),
     is_thinking: Boolean(row.is_thinking),
     is_agent_run: Boolean(row.is_agent_run),
+    mode: (String(row.mode ?? 'baseline')) as 'baseline' | 'trained',
     status: String(row.status),
     avg_score: row.avg_score === null ? null : Number(row.avg_score),
     avg_tps: row.avg_tps === null ? null : Number(row.avg_tps),
@@ -359,6 +387,11 @@ export function initializeDatabase(): string {
     'tool_score',
     'ALTER TABLE test_results ADD COLUMN tool_score REAL NOT NULL DEFAULT 0',
   );
+  ensureColumn(
+    'benchmark_runs',
+    'mode',
+    "ALTER TABLE benchmark_runs ADD COLUMN mode TEXT NOT NULL DEFAULT 'baseline'",
+  );
 
   ensureDb().prepare(
     "UPDATE benchmark_runs SET status = 'failed', completed_at = ? WHERE status = 'running'",
@@ -386,6 +419,82 @@ export function initializeDatabase(): string {
   }
 
   return dbPath;
+}
+
+// ── Model Profiles ──────────────────────────────────────────────────────────
+
+export interface ModelProfile {
+  id: number;
+  model_pattern: string;
+  name: string;
+  description: string;
+  base_system_prompt: string;
+  prompt_overrides: Record<string, string>;
+  created_at: string;
+}
+
+function rowToProfile(row: SqlRow): ModelProfile {
+  return {
+    id: Number(row.id),
+    model_pattern: String(row.model_pattern),
+    name: String(row.name),
+    description: String(row.description ?? ''),
+    base_system_prompt: String(row.base_system_prompt ?? ''),
+    prompt_overrides: JSON.parse(String(row.prompt_overrides || '{}')),
+    created_at: String(row.created_at),
+  };
+}
+
+export function listProfiles(): ModelProfile[] {
+  return (ensureDb().prepare('SELECT * FROM model_profiles ORDER BY name').all() as SqlRow[])
+    .map(rowToProfile);
+}
+
+export function getProfile(id: number): ModelProfile | undefined {
+  const row = ensureDb().prepare('SELECT * FROM model_profiles WHERE id = ?').get(id) as SqlRow | undefined;
+  return row ? rowToProfile(row) : undefined;
+}
+
+export function createProfile(profile: Omit<ModelProfile, 'id' | 'created_at'>): ModelProfile {
+  const result = ensureDb().prepare(
+    `INSERT INTO model_profiles (model_pattern, name, description, base_system_prompt, prompt_overrides)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run(
+    profile.model_pattern,
+    profile.name,
+    profile.description,
+    profile.base_system_prompt,
+    JSON.stringify(profile.prompt_overrides),
+  );
+  return getProfile(Number(result.lastInsertRowid))!;
+}
+
+export function updateProfile(id: number, updates: Partial<Omit<ModelProfile, 'id' | 'created_at'>>): ModelProfile | undefined {
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  if (updates.model_pattern !== undefined) { fields.push('model_pattern = ?'); values.push(updates.model_pattern); }
+  if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name); }
+  if (updates.description !== undefined) { fields.push('description = ?'); values.push(updates.description); }
+  if (updates.base_system_prompt !== undefined) { fields.push('base_system_prompt = ?'); values.push(updates.base_system_prompt); }
+  if (updates.prompt_overrides !== undefined) { fields.push('prompt_overrides = ?'); values.push(JSON.stringify(updates.prompt_overrides)); }
+  if (fields.length > 0) {
+    ensureDb().prepare(`UPDATE model_profiles SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
+  }
+  return getProfile(id);
+}
+
+export function deleteProfile(id: number): void {
+  ensureDb().prepare('DELETE FROM model_profiles WHERE id = ?').run(id);
+}
+
+export function matchProfileForModel(modelId: string): ModelProfile | undefined {
+  const profiles = listProfiles();
+  for (const p of profiles) {
+    try {
+      if (new RegExp(p.model_pattern, 'i').test(modelId)) return p;
+    } catch { /* skip invalid regex */ }
+  }
+  return undefined;
 }
 
 export function closeDatabase(): void {
@@ -728,8 +837,8 @@ export function createBenchmarkRun(request: BenchmarkRunRequest): number {
   const result = ensureDb()
     .prepare(
       `INSERT INTO benchmark_runs (
-        endpoint_id, suite_id, model_id, model_name, is_thinking, is_agent_run, status, started_at
-      ) VALUES (?, ?, ?, ?, ?, ?, 'running', ?)`,
+        endpoint_id, suite_id, model_id, model_name, is_thinking, is_agent_run, mode, status, started_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?)`,
     )
     .run(
       request.endpoint_id,
@@ -738,6 +847,7 @@ export function createBenchmarkRun(request: BenchmarkRunRequest): number {
       request.model_name,
       request.is_thinking ? 1 : 0,
       request.is_agent_run ? 1 : 0,
+      request.mode ?? 'baseline',
       now,
     );
   return Number(result.lastInsertRowid);

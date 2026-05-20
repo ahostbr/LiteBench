@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, Cpu, Brain } from 'lucide-react';
+import { RefreshCw, Cpu, Brain, Infinity } from 'lucide-react';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -10,11 +10,13 @@ interface ModelSelectorProps {
   endpointId: number | null;
   selectedModel: string | null;
   isThinking: boolean;
+  unlimitedTokens: boolean;
   onSelect: (modelId: string) => void;
   onToggleThinking: (v: boolean) => void;
+  onToggleUnlimited: (v: boolean) => void;
 }
 
-export function ModelSelector({ endpointId, selectedModel, isThinking, onSelect, onToggleThinking }: ModelSelectorProps) {
+export function ModelSelector({ endpointId, selectedModel, isThinking, unlimitedTokens, onSelect, onToggleThinking, onToggleUnlimited }: ModelSelectorProps) {
   const { models, discoverModels } = useEndpointsStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +79,7 @@ export function ModelSelector({ endpointId, selectedModel, isThinking, onSelect,
       )}
 
       {selectedModel && (
-        <div className="mt-4 pt-3 border-t border-zinc-800">
+        <div className="mt-4 pt-3 border-t border-zinc-800 space-y-2">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -87,6 +89,16 @@ export function ModelSelector({ endpointId, selectedModel, isThinking, onSelect,
             />
             <Brain size={14} className="text-violet-400" />
             <span className="text-sm text-zinc-300">Thinking model (5x token budget)</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={unlimitedTokens}
+              onChange={(e) => onToggleUnlimited(e.target.checked)}
+              className="rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500"
+            />
+            <Infinity size={14} className="text-amber-400" />
+            <span className="text-sm text-zinc-300">Unlimited tokens (reasoning models)</span>
           </label>
         </div>
       )}

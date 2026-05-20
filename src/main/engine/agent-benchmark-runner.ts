@@ -103,6 +103,8 @@ export async function runAgentBenchmarkStream(
         (event) => {
           if (event.type === 'text_delta') {
             finalContent += event.content;
+          } else if (event.type === 'text_replace') {
+            finalContent = event.content;
           } else if (event.type === 'tool_call_start') {
             toolCallsMade.push({ ...event.toolCall });
           } else if (event.type === 'tool_call_done') {

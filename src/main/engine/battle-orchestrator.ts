@@ -15,6 +15,7 @@ import { getEndpoint } from '../db';
 import { runCompetitor } from './competitor-runner';
 import { collectMetrics, computeCompositeScore } from './metrics-collector';
 import { applyMultiCompetitorElo, makeModelKey } from './elo-system';
+import type { AgentReasoningMode } from './agent-harness';
 
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes per competitor
 
@@ -95,6 +96,8 @@ export interface StartBattleConfig {
   prompt: string;
   competitors: BattleCompetitorConfig[];
   presetId?: string;
+  reasoningMode?: AgentReasoningMode;
+  maxTokens?: number;
   timeoutMs?: number;
   /** If provided, uses this endpoint+model as the LLM aesthetic judge */
   judgeEndpointId?: number;
@@ -135,11 +138,9 @@ export async function startBattle(
   const controller = new AbortController();
 
   // Resolve preset addendum
+  const preset = config.presetId ? getPreset(config.presetId) : undefined;
   let systemPromptAddendum: string | undefined;
-  if (config.presetId) {
-    const preset = getPreset(config.presetId);
-    systemPromptAddendum = preset?.systemPromptAddendum;
-  }
+  systemPromptAddendum = preset?.systemPromptAddendum;
 
   // Create battle in DB — DB generates the UUID
   const battle = createBattle(config.prompt, config.presetId);
@@ -216,7 +217,7 @@ export async function startBattle(
     });
 
     // Emit competitor_start so UI knows this one is active
-    onEvent({ type: 'competitor_start', competitorId });
+    onEvent({ type: 'competitor_start', competitorId, modelId });
 
     try {
       const result = await runCompetitor({
@@ -226,6 +227,11 @@ export async function startBattle(
         modelId,
         outputDir,
         prompt: config.prompt,
+        presetChallenge: preset
+          ? { difficultyTier: preset.difficultyTier, mode: preset.mode }
+          : undefined,
+        reasoningMode: config.reasoningMode,
+        maxTokens: config.maxTokens,
         systemPromptAddendum,
         signal: competitorController.signal,
         onEvent,

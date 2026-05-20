@@ -105,6 +105,8 @@ export interface BenchmarkRunRequest {
   model_name: string;
   is_thinking?: boolean;
   is_agent_run?: boolean;
+  unlimited_tokens?: boolean;
+  mode?: 'baseline' | 'trained';
 }
 
 export interface TestResult {
@@ -141,6 +143,7 @@ export interface BenchmarkRun {
   model_name: string;
   is_thinking: boolean;
   is_agent_run: boolean;
+  mode: 'baseline' | 'trained';
   status: string;
   avg_score: number | null;
   avg_tps: number | null;

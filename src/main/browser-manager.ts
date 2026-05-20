@@ -1,5 +1,7 @@
-import { BrowserWindow, WebContentsView } from 'electron';
+import { BrowserWindow, WebContentsView, app } from 'electron';
 import { randomUUID } from 'crypto';
+import { join } from 'path';
+import { mkdirSync } from 'fs';
 import { DOM_INDEX_SCRIPT, getClickScript, getTypeScript, getScrollScript, getSelectScript } from './browser-dom-helper';
 
 export interface BrowserBounds {
@@ -9,10 +11,22 @@ export interface BrowserBounds {
   height: number;
 }
 
+export interface DownloadResult {
+  filename: string;
+  path: string;
+  size: number;
+  state: 'completed' | 'cancelled' | 'interrupted';
+}
+
 interface BrowserSession {
   view: WebContentsView;
   logs: string[];
+  lastDownload: DownloadResult | null;
+  pendingDownload: Promise<DownloadResult> | null;
 }
+
+const DOWNLOAD_DIR = join(app.getPath('downloads'), 'LiteBench');
+mkdirSync(DOWNLOAD_DIR, { recursive: true });
 
 const sessions = new Map<string, BrowserSession>();
 
@@ -40,8 +54,33 @@ export function createBrowserSession(parentWindow: BrowserWindow): string {
     }
   });
 
+  // Auto-save downloads without showing a dialog
+  view.webContents.session.on('will-download', (_event, item) => {
+    const savePath = join(DOWNLOAD_DIR, item.getFilename());
+    item.setSavePath(savePath);
+
+    const session = sessions.get(id);
+    if (session) {
+      session.pendingDownload = new Promise<DownloadResult>((resolve) => {
+        item.on('done', (_e, state) => {
+          const result: DownloadResult = {
+            filename: item.getFilename(),
+            path: savePath,
+            size: item.getReceivedBytes(),
+            state: state as DownloadResult['state'],
+          };
+          if (session) {
+            session.lastDownload = result;
+            session.pendingDownload = null;
+          }
+          resolve(result);
+        });
+      });
+    }
+  });
+
   parentWindow.contentView.addChildView(view);
-  sessions.set(id, { view, logs: [] });
+  sessions.set(id, { view, logs: [], lastDownload: null, pendingDownload: null });
 
   return id;
 }
@@ -154,6 +193,42 @@ export async function screenshot(id: string): Promise<string> {
   if (!session) throw new Error(`No browser session: ${id}`);
   const image = await session.view.webContents.capturePage();
   return image.toPNG().toString('base64');
+}
+
+export async function waitForDownload(id: string, timeoutMs = 30_000): Promise<DownloadResult> {
+  const session = sessions.get(id);
+  if (!session) throw new Error(`No browser session: ${id}`);
+
+  // If a download just completed, return it
+  if (session.lastDownload) {
+    const result = session.lastDownload;
+    session.lastDownload = null;
+    return result;
+  }
+
+  // If a download is in progress, wait for it
+  if (session.pendingDownload) {
+    return Promise.race([
+      session.pendingDownload,
+      new Promise<DownloadResult>((_, reject) =>
+        setTimeout(() => reject(new Error('Download timed out')), timeoutMs),
+      ),
+    ]);
+  }
+
+  // No download started yet — wait for one to begin and complete
+  return new Promise<DownloadResult>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('No download started within timeout')), timeoutMs);
+    const check = setInterval(() => {
+      if (session.lastDownload) {
+        clearInterval(check);
+        clearTimeout(timer);
+        const result = session.lastDownload;
+        session.lastDownload = null;
+        resolve(result);
+      }
+    }, 200);
+  });
 }
 
 export async function readPage(id: string): Promise<unknown> {

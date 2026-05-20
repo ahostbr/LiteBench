@@ -106,8 +106,10 @@ export function getTypeScript(text: string, index?: number): string {
         el.dispatchEvent(new Event('input', { bubbles: true }));
         el.dispatchEvent(new Event('change', { bubbles: true }));
       } else if (el.isContentEditable) {
-        el.textContent = '${escaped}';
-        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.focus();
+        const sel = window.getSelection();
+        if (sel) { sel.selectAllChildren(el); sel.collapseToEnd(); }
+        document.execCommand('insertText', false, '${escaped}');
       }
       return { success: true };
     })()`;
@@ -120,8 +122,9 @@ export function getTypeScript(text: string, index?: number): string {
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
     } else if (el.isContentEditable) {
-      el.textContent = '${escaped}';
-      el.dispatchEvent(new Event('input', { bubbles: true }));
+      const sel = window.getSelection();
+      if (sel) { sel.selectAllChildren(el); sel.collapseToEnd(); }
+      document.execCommand('insertText', false, '${escaped}');
     }
     return { success: true };
   })()`;

@@ -1870,11 +1870,10 @@
       "test_id": "agent-browser-1",
       "category": "Browser Navigation",
       "name": "Navigate and extract page content",
-      "system_prompt": "You are a web browsing assistant with browser tools. Use browser_navigate and browser_read_page to access web content. Summarize what you find accurately.",
-      "user_prompt": "Navigate to https://example.com, read the page content, and tell me: what is the main heading, what is the page about, and are there any links on the page? List them.",
+      "system_prompt": "You are a web browsing assistant. Use browser_go to navigate to URLs and read page content. Summarize what you find accurately.",
+      "user_prompt": "Go to https://example.com, read the page content, and tell me: what is the main heading, what is the page about, and are there any links on the page? List them.",
       "eval_keywords": [
-        "browser_navigate",
-        "browser_read_page",
+        "Example Domain",
         "heading",
         "link"
       ],
@@ -1886,33 +1885,40 @@
       "max_tokens": 800,
       "is_agent_task": true,
       "tool_hints": [
-        "browser_navigate",
-        "browser_read_page"
+        "browser_go"
       ],
-      "expected_tool_calls": 2
+      "expected_tool_calls": 1
     },
     {
       "test_id": "agent-browser-2",
-      "category": "Browser Navigation",
-      "name": "Screenshot and describe a page",
-      "system_prompt": "You are a visual web assistant. Use browser tools to navigate and capture screenshots, then describe what you see.",
-      "user_prompt": "Navigate to https://example.com and take a screenshot. Describe the layout, color scheme, and key visual elements you observe.",
+      "category": "Browser Interaction",
+      "name": "Navigate, find elements, and interact",
+      "system_prompt": "You are a web browsing assistant with full browser tools. Use browser_go to navigate, browser_elements to list interactive elements, browser_type to type into inputs, and browser_click to click buttons or links.",
+      "user_prompt": "Go to https://chatgpt.com. Once the page loads, use browser_elements to find the message input area and the send button. Then use browser_type to type this prompt: \"Generate an image: a cyberpunk dragon flying over a neon-lit city at night\". Finally, use browser_click to click the send button. Tell me what happened after you clicked send.",
       "eval_keywords": [
-        "browser_navigate",
-        "browser_screenshot"
+        "chatgpt",
+        "typed",
+        "clicked",
+        "send"
       ],
-      "eval_anti": [],
+      "eval_anti": [
+        "I cannot browse",
+        "I'm unable to",
+        "I don't have access"
+      ],
       "eval_json": false,
       "eval_sentence_count": null,
       "eval_regex": [],
       "eval_min_length": 80,
-      "max_tokens": 600,
+      "max_tokens": 1200,
       "is_agent_task": true,
       "tool_hints": [
-        "browser_navigate",
-        "browser_screenshot"
+        "browser_go",
+        "browser_elements",
+        "browser_type",
+        "browser_click"
       ],
-      "expected_tool_calls": 2
+      "expected_tool_calls": 4
     },
     {
       "test_id": "agent-refusal-1",

@@ -16,6 +16,8 @@ import {
   registerWindowHandlers,
 } from './ipc/window-handlers';
 
+app.commandLine.appendSwitch('remote-debugging-port', '9222');
+
 let mainWindow: BrowserWindow | null = null;
 let isSpanned = false;
 let preSpanBounds: Electron.Rectangle | null = null;

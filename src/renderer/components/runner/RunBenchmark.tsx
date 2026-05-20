@@ -15,6 +15,7 @@ export function RunBenchmark() {
   const [endpointId, setEndpointId] = useState<number | null>(null);
   const [modelId, setModelId] = useState<string | null>(null);
   const [isThinking, setIsThinking] = useState(false);
+  const [unlimitedTokens, setUnlimitedTokens] = useState(false);
   const [suiteId, setSuiteId] = useState<number | null>(null);
   const [starting, setStarting] = useState(false);
 
@@ -78,6 +79,7 @@ export function RunBenchmark() {
         model_id: modelId!,
         model_name: modelName,
         is_thinking: isThinking,
+        unlimited_tokens: unlimitedTokens,
       });
       console.log('[LiteBench] Run created, run_id:', run_id, '— opening SSE stream');
       benchmark.startRun(run_id, 0);
@@ -104,8 +106,10 @@ export function RunBenchmark() {
           endpointId={endpointId}
           selectedModel={modelId}
           isThinking={isThinking}
+          unlimitedTokens={unlimitedTokens}
           onSelect={setModelId}
           onToggleThinking={setIsThinking}
+          onToggleUnlimited={setUnlimitedTokens}
         />
         <TestPicker selectedSuiteId={suiteId} onSelect={setSuiteId} />
       </div>

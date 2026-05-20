@@ -14,7 +14,7 @@ fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
 
 // Models to test — ordered by size
 const MODELS = [
-  { id: 'qwen3.5-27b-claude-4.6-opus-reasoning-distilled', label: 'Qwen 3.5 27B Opus Distill', params: '27B' },
+  { id: 'glm-4.7-flash-claude-opus-4.5-high-reasoning-distill', label: 'GLM 4.7 Flash Opus Distill', params: '?B' },
 ];
 
 interface TestCase {

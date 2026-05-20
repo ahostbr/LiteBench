@@ -6,6 +6,8 @@ import {
   compareRuns,
   completeBenchmarkRun,
   createBenchmarkRun,
+  createProfile,
+  deleteProfile,
   deleteRun,
   failBenchmarkRun,
   getEndpoint,
@@ -14,8 +16,12 @@ import {
   getSuiteCases,
   importLegacyRun,
   insertTestResult,
+  listProfiles,
   listRuns,
+  matchProfileForModel,
+  updateProfile,
 } from '../db';
+import type { ModelProfile } from '../db';
 import { runAgentBenchmarkStream } from '../engine/agent-benchmark-runner';
 import { runBenchmarkStream } from '../engine/runner';
 import type {
@@ -53,9 +59,26 @@ async function executeRun(
     throw new Error('Test suite not found');
   }
 
-  const testCases = getSuiteCases(request.suite_id);
+  let testCases = getSuiteCases(request.suite_id);
   if (testCases.length === 0) {
     throw new Error('Test suite has no test cases');
+  }
+
+  // Apply per-model profile overrides when mode=trained
+  if (request.mode === 'trained') {
+    const profile = matchProfileForModel(request.model_id);
+    if (profile) {
+      testCases = testCases.map((tc) => {
+        const override = profile.prompt_overrides[tc.test_id];
+        if (override) {
+          return { ...tc, system_prompt: override };
+        }
+        if (profile.base_system_prompt) {
+          return { ...tc, system_prompt: profile.base_system_prompt + '\n\n' + tc.system_prompt };
+        }
+        return tc;
+      });
+    }
   }
 
   const runFn = request.is_agent_run ? runAgentBenchmarkStream : runBenchmarkStream;
@@ -222,5 +245,28 @@ export function registerBenchmarksHandlers(): void {
 
   ipcMain.handle('bench:run:import', (_event, filePath: string) => {
     return importLegacyRun(filePath);
+  });
+
+  // ── Model Profile Handlers ──────────────────────────────────────────────
+
+  ipcMain.handle('bench:profiles:list', () => {
+    return listProfiles();
+  });
+
+  ipcMain.handle('bench:profiles:create', (_event, profile: Omit<ModelProfile, 'id' | 'created_at'>) => {
+    return createProfile(profile);
+  });
+
+  ipcMain.handle('bench:profiles:update', (_event, id: number, updates: Partial<Omit<ModelProfile, 'id' | 'created_at'>>) => {
+    return updateProfile(id, updates);
+  });
+
+  ipcMain.handle('bench:profiles:delete', (_event, id: number) => {
+    deleteProfile(id);
+    return { deleted: true };
+  });
+
+  ipcMain.handle('bench:profiles:match', (_event, modelId: string) => {
+    return matchProfileForModel(modelId) ?? null;
   });
 }

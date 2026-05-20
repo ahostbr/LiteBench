@@ -38,8 +38,9 @@ export async function callModel(
   userPrompt: string,
   maxTokens: number,
   isThinking: boolean,
+  unlimitedTokens?: boolean,
 ): Promise<ModelCallResult> {
-  const effectiveMaxTokens = isThinking ? maxTokens * 5 : maxTokens;
+  const effectiveMaxTokens = unlimitedTokens ? -1 : isThinking ? maxTokens * 5 : maxTokens;
   const startedAt = performance.now();
 
   try {
@@ -139,6 +140,7 @@ export async function runBenchmarkStream(
       testCase.user_prompt,
       testCase.max_tokens,
       Boolean(context.request.is_thinking),
+      Boolean(context.request.unlimited_tokens),
     );
 
     if (context.isCancelled()) {
